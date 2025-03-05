@@ -33,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _message = '';
     });
 
-    final url = Uri.parse('http://192.168.0.161:5001/api/account/register');
+    final url = Uri.parse('http://localhost:5001/api/account/register');
     try {
       final response = await http.post(
         url,

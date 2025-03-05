@@ -42,7 +42,7 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/splash',
       routes: {
-        '/splash': (context) => SplashScreen(),
+        '/splash': (context) => LoadingScreen(),
         '/': (context) => HomePage(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
@@ -87,7 +87,6 @@ class _HomePageState extends State<HomePage> {
 
     return Stack(
       children: [
-        // Scaffold jako baza
         Scaffold(
           appBar: const CustomAppBar(title: "FroCar"),
           body: GestureDetector(
@@ -208,14 +207,14 @@ class _HomePageState extends State<HomePage> {
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                           ),
-                          colors: [Colors.green, Colors.lightGreenAccent],
+                          colors: [Color(0xFF6B9071), Color(0xFF60A16B)],
                           textAlign: TextAlign.center,
                         ),
                         SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: () => Navigator.pushNamed(context, '/login'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: Color(0xFF375534),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -235,7 +234,7 @@ class _HomePageState extends State<HomePage> {
                         ElevatedButton(
                           onPressed: () => Navigator.pushNamed(context, '/register'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: Color(0xFF375534),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -259,7 +258,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        // Zasłona na całym ekranie (w tym AppBar) z IgnorePointer
         if (_username!.isNotEmpty)
           IgnorePointer(
             child: Positioned.fill(

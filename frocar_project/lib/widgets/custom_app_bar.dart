@@ -13,12 +13,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return AppBar(
-      backgroundColor: Color(0xFF375534), // Stały zielony kolor
+      backgroundColor: Color(0xFF375534), 
       title: Text(
         title,
         style: TextStyle(color: Colors.white), // Biały tekst
       ),
-      automaticallyImplyLeading: false, // Wyłącza strzałkę wstecz
+      automaticallyImplyLeading: false, 
       actions: [
         IconButton(
           icon: Icon(
@@ -34,7 +34,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               return IconButton(
                 icon: Icon(
                   Icons.exit_to_app,
-                  color: Colors.white, // Białe ikony
+                  color: Colors.white, 
                 ),
                 onPressed: () => _logout(context),
               );
@@ -45,7 +45,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       ],
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(20), // Zaokrąglone rogi na dole
+          bottom: Radius.circular(20), 
         ),
       ),
     );
@@ -84,7 +84,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/',
-            (Route<dynamic> route) => false, // Usuwa wszystkie poprzednie trasy
+            (Route<dynamic> route) => false, 
       );
     }
   }

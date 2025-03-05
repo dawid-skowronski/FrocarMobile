@@ -19,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   Future<void> _login() async {
-    final url = Uri.parse('http://192.168.0.161:5001/api/account/login');
+    final url = Uri.parse('http://localhost:5001/api/account/login');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -42,11 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
         _message = 'Logowanie udane!';
       });
 
-      // Przejście do SplashScreen przed HomePage
+      // Przejście do LoadingScreen przed HomePage
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => SplashScreenAfterLogin(),
+          builder: (context) => LoadingScreen(),
         ),
       );
     } else {
@@ -100,26 +100,6 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 20),
             Text(_message),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// Nowy widget SplashScreen po zalogowaniu
-class SplashScreenAfterLogin extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    Future.delayed(const Duration(seconds: 1), () {
-      // Po 1 sekundzie przekierowuje do HomePage
-      Navigator.pushReplacementNamed(context, '/');
-    });
-
-    return Scaffold(
-      backgroundColor: Color(0xFF375534),
-      body: Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
         ),
       ),
     );

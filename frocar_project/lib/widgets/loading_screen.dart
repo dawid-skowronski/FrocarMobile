@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-class SplashScreen extends StatelessWidget {
-  @override
+class LoadingScreen extends StatelessWidget { 
   Widget build(BuildContext context) {
     Future.delayed(const Duration(seconds: 1), () {
       Navigator.pushReplacementNamed(context, '/');
