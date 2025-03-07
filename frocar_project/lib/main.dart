@@ -78,7 +78,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   double _getOverlayOpacity() {
-    return (_dragOffset.abs() / 100).clamp(0.0, 1.0); // Upewniamy się, że przy max przesunięciu opacity = 1.0
+    return (_dragOffset.abs() / 100).clamp(0.0, 1.0);
   }
 
   @override
@@ -246,7 +246,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        // Przeniesienie overlay na koniec, aby miał najwyższy priorytet
         if (_username!.isNotEmpty)
           Positioned.fill(
             child: IgnorePointer(

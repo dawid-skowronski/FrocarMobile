@@ -16,13 +16,12 @@ class LoadingScreen extends StatefulWidget {
 class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-  late String _route; // Zmienna przechowująca trasę
+  late String _route;
 
   @override
   void initState() {
     super.initState();
 
-    // Inicjalizacja kontrolera animacji
     _controller = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -33,16 +32,14 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
 
-    // Uruchom animację
     _controller.forward();
 
-    // Pobierz trasę po pierwszym klatkowaniu
     SchedulerBinding.instance.addPostFrameCallback((_) {
       setState(() {
         _route = widget.nextRoute ?? (ModalRoute.of(context)?.settings.arguments as String?) ?? '/';
       });
 
-      // Przekierowanie po 1 sekundzie
+      // Czas po którym przekieruje
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
           Navigator.pushReplacementNamed(context, _route);

@@ -20,7 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   Future<void> _login() async {
-    final url = Uri.parse('http://localhost/api/account/login');
+    final url = Uri.parse('http://localhost:5001/api/account/login');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},

@@ -23,7 +23,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         IconButton(
           icon: Icon(
             themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-            color: Colors.white, 
+            color: Colors.white,
+          ),
           onPressed: () => themeProvider.toggleTheme(),
         ),
         FutureBuilder<String?>(
@@ -33,7 +34,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               return IconButton(
                 icon: Icon(
                   Icons.exit_to_app,
-                  color: Colors.white, 
+                  color: Colors.white,
+                ),
                 onPressed: () => _logout(context),
               );
             }
@@ -78,11 +80,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     if (shouldLogout == true) {
       await prefs.remove('token');
       await prefs.remove('username');
-      // Czyszczenie stosu nawigacji i przejście do ekranu startowego
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/',
-            (Route<dynamic> route) => false, 
+            (Route<dynamic> route) => false,
       );
     }
   }
