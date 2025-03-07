@@ -1,17 +1,89 @@
+// lib/widgets/loading_screen.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-class LoadingScreen extends StatelessWidget { 
-  Widget build(BuildContext context) {
-    Future.delayed(const Duration(seconds: 1), () {
-      Navigator.pushReplacementNamed(context, '/');
-    });
+import 'package:flutter/scheduler.dart';
 
+class LoadingScreen extends StatefulWidget {
+  final String? nextRoute;
+
+  const LoadingScreen({Key? key, this.nextRoute}) : super(key: key);
+
+  @override
+  _LoadingScreenState createState() => _LoadingScreenState();
+}
+
+class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late String _route; // Zmienna przechowująca trasę
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Inicjalizacja kontrolera animacji
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+
+    // Animacja fade-in
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+
+    // Uruchom animację
+    _controller.forward();
+
+    // Pobierz trasę po pierwszym klatkowaniu
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        _route = widget.nextRoute ?? (ModalRoute.of(context)?.settings.arguments as String?) ?? '/';
+      });
+
+      // Przekierowanie po 1 sekundzie
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, _route);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF375534),
+      backgroundColor: const Color(0xFF375534),
       body: Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/frocar_logo.png',
+                width: 200,
+                height: 200,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 20),
+              const SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  strokeWidth: 4,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

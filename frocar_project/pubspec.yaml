@@ -49,3 +49,7 @@ flutter:
 
   uses-material-design: true
 
+  assets:
+  - assets/frocar_logo.png
+  - assets/map_styles/light_mode.json
+  - assets/map_styles/dark_mode.json

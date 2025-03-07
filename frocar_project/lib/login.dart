@@ -1,9 +1,10 @@
+// lib/login.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
-import '/widgets/loading_screen.dart'; // Import SplashScreen
+import '/widgets/loading_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,7 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   Future<void> _login() async {
-    final url = Uri.parse('http://localhost:5001/api/account/login');
+    final url = Uri.parse('http://localhost/api/account/login');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -42,11 +43,10 @@ class _LoginScreenState extends State<LoginScreen> {
         _message = 'Logowanie udane!';
       });
 
-      // Przejście do LoadingScreen przed HomePage
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => LoadingScreen(),
+          builder: (context) => LoadingScreen(nextRoute: '/'),
         ),
       );
     } else {

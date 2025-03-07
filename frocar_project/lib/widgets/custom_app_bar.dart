@@ -13,18 +13,17 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return AppBar(
-      backgroundColor: Color(0xFF375534), 
+      backgroundColor: Color(0xFF375534),
       title: Text(
         title,
-        style: TextStyle(color: Colors.white), // Biały tekst
+        style: TextStyle(color: Colors.white),
       ),
-      automaticallyImplyLeading: false, 
+      automaticallyImplyLeading: false,
       actions: [
         IconButton(
           icon: Icon(
             themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-            color: Colors.white, // Białe ikony
-          ),
+            color: Colors.white, 
           onPressed: () => themeProvider.toggleTheme(),
         ),
         FutureBuilder<String?>(
@@ -35,7 +34,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 icon: Icon(
                   Icons.exit_to_app,
                   color: Colors.white, 
-                ),
                 onPressed: () => _logout(context),
               );
             }
@@ -45,7 +43,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       ],
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(20), 
+          bottom: Radius.circular(20),
         ),
       ),
     );

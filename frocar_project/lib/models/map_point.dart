@@ -1,11 +1,12 @@
+// lib/models/map_point.dart
 class MapPoint {
-  final int id;
+  final int? id; // Id jest teraz opcjonalne
   final double latitude;
   final double longitude;
   final int userId;
 
   MapPoint({
-    required this.id,
+    this.id, // Id nie jest wymagane
     required this.latitude,
     required this.longitude,
     required this.userId,
@@ -18,5 +19,13 @@ class MapPoint {
       longitude: json['longitude'],
       userId: json['userId'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'latitude': latitude,
+      'longitude': longitude,
+      'userId': userId,
+    };
   }
 }

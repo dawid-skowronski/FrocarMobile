@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
@@ -42,12 +43,13 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/splash',
       routes: {
-        '/splash': (context) => LoadingScreen(),
+        '/splash': (context) => LoadingScreen(nextRoute: '/'),
         '/': (context) => HomePage(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/rentCar': (context) => RentCarPage(),
         '/offerCar': (context) => OfferCarPage(),
+        '/loading': (context) => const LoadingScreen(),
       },
     );
   }
@@ -76,7 +78,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   double _getOverlayOpacity() {
-    return (_dragOffset.abs() / 100).clamp(0.0, 1.0);
+    return (_dragOffset.abs() / 100).clamp(0.0, 1.0); // Upewniamy się, że przy max przesunięciu opacity = 1.0
   }
 
   @override
@@ -100,9 +102,9 @@ class _HomePageState extends State<HomePage> {
             onVerticalDragEnd: (details) {
               if (_username!.isNotEmpty) {
                 if (_dragOffset < -50) {
-                  Navigator.pushNamed(context, '/rentCar');
+                  Navigator.pushNamed(context, '/loading', arguments: '/rentCar');
                 } else if (_dragOffset > 50) {
-                  Navigator.pushNamed(context, '/offerCar');
+                  Navigator.pushNamed(context, '/loading', arguments: '/offerCar');
                 }
                 setState(() {
                   _dragOffset = 0.0;
@@ -150,13 +152,6 @@ class _HomePageState extends State<HomePage> {
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFFAEC3B0),
-                        shadows: [
-                          Shadow(
-                            blurRadius: 4.0,
-                            color: Colors.black45,
-                            offset: Offset(2.0, 2.0),
-                          ),
-                        ],
                       ),
                     ),
                   ),
@@ -171,13 +166,6 @@ class _HomePageState extends State<HomePage> {
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: Color(0xFFAEC3B0),
-                        shadows: [
-                          Shadow(
-                            blurRadius: 4.0,
-                            color: Colors.black45,
-                            offset: Offset(2.0, 2.0),
-                          ),
-                        ],
                       ),
                     ),
                   ),
@@ -258,10 +246,12 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
+        // Przeniesienie overlay na koniec, aby miał najwyższy priorytet
         if (_username!.isNotEmpty)
-          IgnorePointer(
-            child: Positioned.fill(
-              child: Container(
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 100),
                 color: Color(0xFF375534).withOpacity(_getOverlayOpacity()),
               ),
             ),
