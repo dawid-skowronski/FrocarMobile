@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:google_maps_webservice/places.dart';
 import 'package:provider/provider.dart';
 import 'package:test_project/providers/theme_provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+class SelectedLocation {
+  final double latitude;
+  final double longitude;
+
+  SelectedLocation({required this.latitude, required this.longitude});
+}
 
 class MapPicker extends StatefulWidget {
+  const MapPicker({super.key});
+
   @override
   _MapPickerState createState() => _MapPickerState();
 }
@@ -12,72 +22,81 @@ class MapPicker extends StatefulWidget {
 class _MapPickerState extends State<MapPicker> {
   GoogleMapController? _controller;
   LatLng? _selectedLocation;
-  TextEditingController _addressController = TextEditingController();
-  final GoogleMapsPlaces _places = GoogleMapsPlaces(apiKey: 'API_KEY');
-  List<Prediction> _placeSuggestions = [];
+  final addressController = TextEditingController();
   bool _isSearching = false;
   String? _mapStyle; // Przechowuje styl mapy
+
+  static const LatLng _initialPosition = LatLng(52.2297, 21.0122); // Domyślna pozycja (Warszawa)
 
   void _onMapCreated(GoogleMapController controller) {
     _controller = controller;
     _loadMapStyle();
   }
 
-  void _onTap(LatLng location) {
+  void _onMapTapped(LatLng position) {
     setState(() {
-      _selectedLocation = location;
+      _selectedLocation = position;
     });
   }
 
-  Future<void> _searchAddress(String address) async {
-    if (address.isNotEmpty) {
-      try {
-        setState(() {
-          _isSearching = true;
-        });
-        final placesResponse = await _places.autocomplete(address, components: [Component(Component.country, 'pl')]);
-        if (placesResponse.isOkay) {
+  Future<void> _searchAddress() async {
+    final address = addressController.text;
+    if (address.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Proszę wpisać adres'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final url = Uri.parse(
+          'https://nominatim.openstreetmap.org/search?q=${Uri.encodeQueryComponent(address)}&format=json&limit=1');
+      final response = await http.get(
+        url,
+        headers: {
+          'User-Agent': 'FrogCarApp/1.0 (twoj.email@example.com)', 
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data.isNotEmpty) {
+          final lat = double.parse(data[0]['lat']);
+          final lon = double.parse(data[0]['lon']);
+          final position = LatLng(lat, lon);
           setState(() {
-            _placeSuggestions = placesResponse.predictions;
+            _selectedLocation = position;
           });
+          _controller?.animateCamera(CameraUpdate.newLatLng(position));
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Błąd wyszukiwania: ${placesResponse.errorMessage}')),
+            const SnackBar(
+              content: Text('Nie znaleziono lokalizacji dla podanego adresu'),
+              backgroundColor: Colors.redAccent,
+            ),
           );
         }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd wyszukiwania: $e')),
-        );
-      } finally {
-        setState(() {
-          _isSearching = false;
-        });
+      } else {
+        throw Exception('Błąd podczas geokodowania: ${response.statusCode}');
       }
-    } else {
-      setState(() {
-        _placeSuggestions.clear();
-      });
-    }
-  }
-
-  Future<void> _selectSuggestion(Prediction prediction) async {
-    try {
-      final placeDetails = await _places.getDetailsByPlaceId(prediction.placeId!);
-      final location = LatLng(
-        placeDetails.result.geometry!.location.lat,
-        placeDetails.result.geometry!.location.lng,
-      );
-      setState(() {
-        _selectedLocation = location;
-        _placeSuggestions.clear();
-        _addressController.text = prediction.description ?? '';
-      });
-      _controller?.animateCamera(CameraUpdate.newLatLng(location));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd pobierania szczegółów lokalizacji: $e')),
+        SnackBar(
+          content: Text('Błąd podczas wyszukiwania adresu: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
+    } finally {
+      setState(() {
+        _isSearching = false;
+      });
     }
   }
 
@@ -92,8 +111,28 @@ class _MapPickerState extends State<MapPicker> {
       setState(() {
         _mapStyle = style;
       });
+      _controller?.setMapStyle(style); // Ustawienie stylu po załadowaniu
     } catch (e) {
       print('Błąd ładowania stylu mapy: $e');
+    }
+  }
+
+  void _confirmSelection() {
+    if (_selectedLocation != null) {
+      Navigator.pop(
+        context,
+        SelectedLocation(
+          latitude: _selectedLocation!.latitude,
+          longitude: _selectedLocation!.longitude,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Proszę wybrać lokalizację na mapie'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 
@@ -101,13 +140,11 @@ class _MapPickerState extends State<MapPicker> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Wybierz lokalizację'),
+        title: const Text('Wybierz lokalizację'),
         actions: [
           IconButton(
-            icon: Icon(Icons.check),
-            onPressed: _selectedLocation != null
-                ? () => Navigator.pop(context, _selectedLocation)
-                : null,
+            icon: const Icon(Icons.check),
+            onPressed: _selectedLocation != null ? _confirmSelection : null,
           ),
         ],
       ),
@@ -118,51 +155,36 @@ class _MapPickerState extends State<MapPicker> {
             child: Column(
               children: [
                 TextField(
-                  controller: _addressController,
+                  controller: addressController,
                   decoration: InputDecoration(
                     hintText: 'Wprowadź adres',
                     suffixIcon: IconButton(
-                      icon: Icon(Icons.search),
-                      onPressed: () => _searchAddress(_addressController.text),
+                      icon: const Icon(Icons.search),
+                      onPressed: _searchAddress,
                     ),
                   ),
-                  onChanged: _searchAddress,
                 ),
-                if (_isSearching) CircularProgressIndicator(),
-                if (_placeSuggestions.isNotEmpty)
-                  Container(
-                    height: 200,
-                    child: ListView.builder(
-                      itemCount: _placeSuggestions.length,
-                      itemBuilder: (context, index) {
-                        final prediction = _placeSuggestions[index];
-                        return ListTile(
-                          title: Text(prediction.description ?? ''),
-                          onTap: () => _selectSuggestion(prediction),
-                        );
-                      },
-                    ),
-                  ),
+                if (_isSearching) const CircularProgressIndicator(),
               ],
             ),
           ),
           Expanded(
             child: GoogleMap(
               onMapCreated: _onMapCreated,
-              initialCameraPosition: CameraPosition(
-                target: _selectedLocation ?? const LatLng(52.2297, 21.0122),
+              initialCameraPosition: const CameraPosition(
+                target: _initialPosition,
                 zoom: 10,
               ),
-              onTap: _onTap,
+              onTap: _onMapTapped,
               markers: _selectedLocation != null
                   ? {
                 Marker(
-                  markerId: const MarkerId('selected'),
+                  markerId: const MarkerId('selected-location'),
                   position: _selectedLocation!,
                 ),
               }
                   : {},
-              style: _mapStyle, 
+              style: _mapStyle, // Użycie stylu mapy
             ),
           ),
         ],
@@ -172,7 +194,7 @@ class _MapPickerState extends State<MapPicker> {
 
   @override
   void dispose() {
-    _addressController.dispose();
+    addressController.dispose();
     super.dispose();
   }
 }

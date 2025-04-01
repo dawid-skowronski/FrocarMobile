@@ -5,8 +5,12 @@ import 'package:test_project/widgets/custom_app_bar.dart';
 import 'package:test_project/widgets/map_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:test_project/providers/theme_provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class CarListingPage extends StatefulWidget {
+  const CarListingPage({super.key});
+
   @override
   _CarListingPageState createState() => _CarListingPageState();
 }
@@ -16,20 +20,43 @@ class _CarListingPageState extends State<CarListingPage> {
   final brandController = TextEditingController();
   final engineCapacityController = TextEditingController();
   final seatsController = TextEditingController();
+  final rentalPriceController = TextEditingController();
   String? fuelType;
   String? carType;
   List<String> features = [];
   final featureController = TextEditingController();
   double? latitude;
   double? longitude;
+  String? displayAddress; // Przechowuje sformatowany adres
   bool isLoading = false;
 
-  final List<String> fuelTypes = ['Benzyna', 'Diesel', 'Elektryczny', 'Hybryda', 'LPG'];
+  final List<String> fuelTypes = [
+    'Benzyna',
+    'Diesel',
+    'Elektryczny',
+    'Hybryda',
+    'LPG'
+  ];
   final List<String> carTypes = [
-    'SUV', 'Sedan', 'Kombi', 'Hatchback', 'Coupe', 'Cabrio', 'Pickup', 'Van', 'Minivan',
-    'Crossover', 'Limuzyna', 'Microcar', 'Roadster', 'Muscle car', 'Terenowy', 'Targa'
+    'SUV',
+    'Sedan',
+    'Kombi',
+    'Hatchback',
+    'Coupe',
+    'Cabrio',
+    'Pickup',
+    'Van',
+    'Minivan',
+    'Crossover',
+    'Limuzyna',
+    'Microcar',
+    'Roadster',
+    'Muscle car',
+    'Terenowy',
+    'Targa'
   ];
 
+  // Funkcja do wybierania lokalizacji na mapie
   Future<void> _selectLocation() async {
     final selectedLocation = await Navigator.push(
       context,
@@ -39,18 +66,81 @@ class _CarListingPageState extends State<CarListingPage> {
       setState(() {
         latitude = selectedLocation.latitude;
         longitude = selectedLocation.longitude;
+        displayAddress = null; // Resetujemy adres, aby pobrać nowy
+      });
+      // Po wybraniu lokalizacji, konwertujemy współrzędne na adres
+      await _reverseGeocode(latitude!, longitude!);
+    }
+  }
+
+  // Funkcja do odwrotnego geokodowania (współrzędne -> adres)
+  Future<void> _reverseGeocode(double lat, double lon) async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      // Dodajemy opóźnienie, aby uniknąć przekroczenia limitu Nominatim
+      await Future.delayed(const Duration(seconds: 1));
+
+      final url = Uri.parse(
+          'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&addressdetails=1');
+      final response = await http.get(
+        url,
+        headers: {
+          'User-Agent': 'FrogCarApp/1.0 (jakub.trznadel@studenci.collegiumwitelona.pl)',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final address = data['address'];
+        if (address != null) {
+          final street = address['road'] ?? '';
+          final houseNumber = address['house_number'] ?? '';
+          final state = address['state'] ?? '';
+          final city = address['city'] ?? address['town'] ?? address['village'] ?? '';
+          final postcode = address['postcode'] ?? '';
+          setState(() {
+            displayAddress = '$street, $houseNumber, $state, $city, $postcode';
+          });
+        } else {
+          setState(() {
+            displayAddress = 'Nie znaleziono adresu';
+          });
+        }
+      } else {
+        throw Exception('Błąd podczas odwrotnego geokodowania: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Błąd podczas pobierania adresu: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      setState(() {
+        displayAddress = 'Nie udało się pobrać adresu';
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
       });
     }
   }
 
   Future<void> _submit() async {
-    if (_formKey.currentState!.validate() && latitude != null && longitude != null) {
+    if (_formKey.currentState!.validate() &&
+        latitude != null &&
+        longitude != null &&
+        fuelType != null &&
+        carType != null) {
       setState(() {
         isLoading = true;
       });
       try {
         final carListing = CarListing(
-          id: 0,
+          id: 0, // ID będzie ustawione przez backend
           brand: brandController.text,
           engineCapacity: double.parse(engineCapacityController.text),
           fuelType: fuelType!,
@@ -59,15 +149,24 @@ class _CarListingPageState extends State<CarListingPage> {
           features: features,
           latitude: latitude!,
           longitude: longitude!,
+          userId: 0, 
+          isAvailable: true, 
+          rentalPricePerDay: double.parse(rentalPriceController.text),
         );
         await ApiService().createCarListing(carListing);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ogłoszenie dodane pomyślnie')),
+          const SnackBar(
+            content: Text('Ogłoszenie dodane pomyślnie'),
+            backgroundColor: Colors.green,
+          ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Błąd podczas dodawania ogłoszenia: $e')),
+          SnackBar(
+            content: Text('Błąd podczas dodawania ogłoszenia: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       } finally {
         setState(() {
@@ -76,7 +175,10 @@ class _CarListingPageState extends State<CarListingPage> {
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Wypełnij wszystkie pola i wybierz lokalizację')),
+        const SnackBar(
+          content: Text('Wypełnij wszystkie pola i wybierz lokalizację'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -87,7 +189,7 @@ class _CarListingPageState extends State<CarListingPage> {
 
     return InputDecoration(
       hintText: hintText,
-      contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       filled: true,
       fillColor: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
       border: OutlineInputBorder(
@@ -99,16 +201,26 @@ class _CarListingPageState extends State<CarListingPage> {
   }
 
   @override
+  void dispose() {
+    brandController.dispose();
+    engineCapacityController.dispose();
+    seatsController.dispose();
+    rentalPriceController.dispose();
+    featureController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
 
     return Scaffold(
-      appBar: CustomAppBar(title: "Dodaj ogłoszenie"),
+      appBar: const CustomAppBar(title: "Dodaj ogłoszenie"),
       body: isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
@@ -117,43 +229,58 @@ class _CarListingPageState extends State<CarListingPage> {
               TextFormField(
                 controller: brandController,
                 decoration: _inputDecoration('Marka'),
-                validator: (value) => value!.isEmpty ? 'Pole wymagane' : null,
-                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                validator: (value) =>
+                value!.isEmpty ? 'Pole wymagane' : null,
+                style: TextStyle(
+                    color: isDarkMode ? Colors.white : Colors.black),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: engineCapacityController,
                 decoration: _inputDecoration('Pojemność silnika (l)'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value!.isEmpty) return 'Pole wymagane';
-                  if (double.tryParse(value) == null) return 'Podaj liczbę';
+                  if (double.tryParse(value) == null)
+                    return 'Podaj liczbę';
+                  if (double.parse(value) <= 0)
+                    return 'Pojemność musi być większa od 0';
                   return null;
                 },
-                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                style: TextStyle(
+                    color: isDarkMode ? Colors.white : Colors.black),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               GestureDetector(
-                onTap: () => _showSelectionDialog(context, 'Wybierz rodzaj paliwa', fuelTypes, (selected) {
-                  setState(() => fuelType = selected);
-                }),
+                onTap: () => _showSelectionDialog(
+                    context, 'Wybierz rodzaj paliwa', fuelTypes,
+                        (selected) {
+                      setState(() => fuelType = selected);
+                    }),
                 child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 16, horizontal: 16),
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+                    border: Border.all(
+                        color: isDarkMode ? Colors.grey : Colors.grey[400]!),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(fuelType ?? 'Wybierz rodzaj paliwa', style: TextStyle(fontSize: 16, color: isDarkMode ? Colors.white : Colors.black)),
-                      Icon(Icons.arrow_drop_down, color: isDarkMode ? Colors.white : Colors.black),
+                      Text(
+                          fuelType ?? 'Wybierz rodzaj paliwa',
+                          style: TextStyle(
+                              fontSize: 16,
+                              color: isDarkMode ? Colors.white : Colors.black)),
+                      Icon(Icons.arrow_drop_down,
+                          color: isDarkMode ? Colors.white : Colors.black),
                     ],
                   ),
                 ),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: seatsController,
                 decoration: _inputDecoration('Liczba miejsc'),
@@ -161,47 +288,79 @@ class _CarListingPageState extends State<CarListingPage> {
                 validator: (value) {
                   if (value!.isEmpty) return 'Pole wymagane';
                   if (int.tryParse(value) == null) return 'Podaj liczbę';
+                  if (int.parse(value) <= 0)
+                    return 'Liczba miejsc musi być większa od 0';
                   return null;
                 },
-                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                style: TextStyle(
+                    color: isDarkMode ? Colors.white : Colors.black),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               GestureDetector(
-                onTap: () => _showSelectionDialog(context, 'Wybierz typ samochodu', carTypes, (selected) {
-                  setState(() => carType = selected);
-                }),
+                onTap: () => _showSelectionDialog(
+                    context, 'Wybierz typ samochodu', carTypes,
+                        (selected) {
+                      setState(() => carType = selected);
+                    }),
                 child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 16, horizontal: 16),
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+                    border: Border.all(
+                        color: isDarkMode ? Colors.grey : Colors.grey[400]!),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(carType ?? 'Wybierz typ samochodu', style: TextStyle(fontSize: 16, color: isDarkMode ? Colors.white : Colors.black)),
-                      Icon(Icons.arrow_drop_down, color: isDarkMode ? Colors.white : Colors.black),
+                      Text(
+                          carType ?? 'Wybierz typ samochodu',
+                          style: TextStyle(
+                              fontSize: 16,
+                              color: isDarkMode ? Colors.white : Colors.black)),
+                      Icon(Icons.arrow_drop_down,
+                          color: isDarkMode ? Colors.white : Colors.black),
                     ],
                   ),
                 ),
               ),
-              SizedBox(height: 12),
-              Padding(
-                padding: EdgeInsets.only(left: 5),
-                child: Text('Dodatki:', style: TextStyle(fontWeight: FontWeight.bold, color: isDarkMode ? Colors.white : Colors.black)),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: rentalPriceController,
+                decoration: _inputDecoration('Cena wynajmu za dzień (PLN)'),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value!.isEmpty) return 'Pole wymagane';
+                  if (double.tryParse(value) == null)
+                    return 'Podaj liczbę';
+                  if (double.parse(value) <= 0)
+                    return 'Cena musi być większa od 0';
+                  return null;
+                },
+                style: TextStyle(
+                    color: isDarkMode ? Colors.white : Colors.black),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.only(left: 5),
+                child: Text('Dodatki:',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? Colors.white : Colors.black)),
+              ),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: featureController,
                       decoration: _inputDecoration('Np. Klimatyzacja'),
-                      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                      style: TextStyle(
+                          color: isDarkMode ? Colors.white : Colors.black),
                     ),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: () {
                       if (featureController.text.isNotEmpty) {
@@ -212,26 +371,28 @@ class _CarListingPageState extends State<CarListingPage> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      shape: CircleBorder(),
-                      padding: EdgeInsets.all(16),
-                      backgroundColor: Color(0xFF375534),
+                      shape: const CircleBorder(),
+                      padding: const EdgeInsets.all(16),
+                      backgroundColor: const Color(0xFF375534),
                     ),
-                    child: Icon(Icons.add, color: Colors.white),
+                    child: const Icon(Icons.add, color: Colors.white),
                   ),
                 ],
               ),
-              SizedBox(height: 16),
-
+              const SizedBox(height: 16),
               // Wyświetlanie dodanych dodatków z możliwością usunięcia
               Wrap(
-                spacing: 8, 
+                spacing: 8,
                 runSpacing: 8,
                 children: features.map((feature) {
                   return Chip(
-                    label: Text(feature, style: TextStyle(color: isDarkMode ? Colors.white : Colors.black)),
-                    backgroundColor: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
-                    deleteIcon: Icon(Icons.close, color: isDarkMode ? Colors.white : Colors.black),
-                    deleteIconColor: isDarkMode ? Colors.white : Colors.black,
+                    label: Text(feature,
+                        style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.black)),
+                    backgroundColor:
+                    isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
+                    deleteIcon: Icon(Icons.close,
+                        color: isDarkMode ? Colors.white : Colors.black),
                     onDeleted: () {
                       setState(() {
                         features.remove(feature);
@@ -240,50 +401,53 @@ class _CarListingPageState extends State<CarListingPage> {
                   );
                 }).toList(),
               ),
-
-              SizedBox(height: 24),
-              // Wybór lokalizacji
+              const SizedBox(height: 24),
+              // Wybór lokalizacji na mapie
               Container(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _selectLocation,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF375534),
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    textStyle: TextStyle(fontSize: 18),
+                    backgroundColor: const Color(0xFF375534),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontSize: 18),
                   ),
-                  child: Text('Wybierz lokalizację na mapie', style: TextStyle(color: Colors.white)),
+                  child: const Text('Wybierz lokalizację na mapie',
+                      style: TextStyle(color: Colors.white)),
                 ),
               ),
-              SizedBox(height: 16),
-
-              // Wyświetlanie wybranej lokalizacji
-              if (latitude != null && longitude != null) ...[
+              const SizedBox(height: 16),
+              // Wyświetlanie wybranego adresu
+              if (displayAddress != null) ...[
                 Padding(
-                  padding: EdgeInsets.all(5),
+                  padding: const EdgeInsets.all(5),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Wybrana lokalizacja:', style: TextStyle(fontWeight: FontWeight.bold, color: isDarkMode ? Colors.white : Colors.black)),
-                      SizedBox(height: 8),
-                      Text('Szerokość: $latitude', style: TextStyle(color: isDarkMode ? Colors.white : Colors.black)),
-                      Text('Długość: $longitude', style: TextStyle(color: isDarkMode ? Colors.white : Colors.black)),
+                      Text('Wybrana lokalizacja:',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isDarkMode ? Colors.white : Colors.black)),
+                      const SizedBox(height: 8),
+                      Text('Adres: $displayAddress',
+                          style: TextStyle(
+                              color: isDarkMode ? Colors.white : Colors.black)),
                     ],
                   ),
                 ),
               ],
-
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Container(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF375534),
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    textStyle: TextStyle(fontSize: 18),
+                    backgroundColor: const Color(0xFF375534),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontSize: 18),
                   ),
-                  child: Text('Dodaj ogłoszenie', style: TextStyle(color: Colors.white)),
+                  child: const Text('Dodaj ogłoszenie',
+                      style: TextStyle(color: Colors.white)),
                 ),
               ),
             ],
@@ -293,22 +457,29 @@ class _CarListingPageState extends State<CarListingPage> {
     );
   }
 
-  Future<void> _showSelectionDialog(BuildContext context, String title, List<String> options, Function(String) onSelected) {
+  Future<void> _showSelectionDialog(
+      BuildContext context, String title, List<String> options, Function(String) onSelected) {
     return showModalBottomSheet(
       context: context,
       builder: (context) {
         return Container(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           height: 400,
           child: Column(
             children: [
-              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+              Text(title,
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color)),
               Expanded(
                 child: ListView.builder(
                   itemCount: options.length,
                   itemBuilder: (context, index) {
                     return ListTile(
-                      title: Text(options[index], style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)),
+                      title: Text(options[index],
+                          style: TextStyle(
+                              color: Theme.of(context).textTheme.bodyLarge?.color)),
                       onTap: () {
                         onSelected(options[index]);
                         Navigator.pop(context);

@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/models/car_listing.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
-import 'car_listing_page.dart';
-import 'car_listing_detail_page.dart';
-
+import 'car_listing_page.dart' as listingPage; 
+import 'car_listing_detail_page.dart' as detailPage; 
 class OfferCarPage extends StatefulWidget {
+  const OfferCarPage({super.key});
+
   @override
   _OfferCarPageState createState() => _OfferCarPageState();
 }
@@ -29,10 +30,9 @@ class _OfferCarPageState extends State<OfferCarPage> {
         _isLoading = false;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd podczas pobierania ogłoszeń: $e')),
-      );
+      // Zamiast pokazywać SnackBar, ustawiamy pustą listę i kończymy ładowanie
       setState(() {
+        _userListings = [];
         _isLoading = false;
       });
     }
@@ -41,7 +41,7 @@ class _OfferCarPageState extends State<OfferCarPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(title: "Zarządzaj ogłoszeniami"),
+      appBar: const CustomAppBar(title: "Zarządzaj ogłoszeniami"),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -52,34 +52,49 @@ class _OfferCarPageState extends State<OfferCarPage> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => CarListingPage()),
-                ).then((_) => _loadUserListings());
+                  MaterialPageRoute(builder: (context) => const listingPage.CarListingPage()),
+                ).then((result) {
+                  if (result == true) {
+                    _loadUserListings(); // Odśwież listę tylko, jeśli dodano ogłoszenie
+                  }
+                });
               },
               child: Card(
-                color: Color(0xFF375534),
+                color: const Color(0xFF375534),
                 elevation: 4,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add, size: 32),
+                    children: const [
+                      Icon(Icons.add, size: 32, color: Colors.white),
                       SizedBox(width: 8),
-                      Text('Dodaj nowe ogłoszenie', style: TextStyle(fontSize: 18)),
+                      Text(
+                        'Dodaj nowe ogłoszenie',
+                        style: TextStyle(fontSize: 18, color: Colors.white),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             // Panel "Moje ogłoszenia"
-            Text('Moje ogłoszenia', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
+            const Text(
+              'Moje ogłoszenia',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
             _isLoading
-                ? Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator())
                 : Expanded(
               child: _userListings.isEmpty
-                  ? Center(child: Text('Brak ogłoszeń'))
+                  ? const Center(
+                child: Text(
+                  'Brak ogłoszeń',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              )
                   : ListView.builder(
                 itemCount: _userListings.length,
                 itemBuilder: (context, index) {
@@ -91,7 +106,7 @@ class _OfferCarPageState extends State<OfferCarPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => CarListingDetailPage(listing: listing),
+                          builder: (context) => detailPage.CarListingDetailPage(listing: listing),
                         ),
                       );
                     },
