@@ -61,7 +61,7 @@ class _MapPickerState extends State<MapPicker> {
       final response = await http.get(
         url,
         headers: {
-          'User-Agent': 'FrogCarApp/1.0 (twoj.email@example.com)', 
+          'User-Agent': 'FrogCarApp/1.0 (twoj.email@example.com)', // Zmień na unikalny User-Agent
         },
       );
 

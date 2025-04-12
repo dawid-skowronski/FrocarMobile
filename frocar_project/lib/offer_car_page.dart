@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/models/car_listing.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
-import 'car_listing_page.dart' as listingPage; 
-import 'car_listing_detail_page.dart' as detailPage; 
+import 'car_listing_page.dart' as listingPage; // Alias dla car_listing_page.dart
+import 'car_listing_detail_page.dart' as detailPage; // Alias dla car_listing_detail_page.dart
+
 class OfferCarPage extends StatefulWidget {
   const OfferCarPage({super.key});
 
@@ -30,7 +31,6 @@ class _OfferCarPageState extends State<OfferCarPage> {
         _isLoading = false;
       });
     } catch (e) {
-      // Zamiast pokazywać SnackBar, ustawiamy pustą listę i kończymy ładowanie
       setState(() {
         _userListings = [];
         _isLoading = false;
@@ -99,17 +99,78 @@ class _OfferCarPageState extends State<OfferCarPage> {
                 itemCount: _userListings.length,
                 itemBuilder: (context, index) {
                   final listing = _userListings[index];
-                  return ListTile(
-                    title: Text(listing.brand),
-                    subtitle: Text('Typ: ${listing.carType}'),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => detailPage.CarListingDetailPage(listing: listing),
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 8.0),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.directions_car,
+                        color: Color(0xFF375534),
+                      ),
+                      title: Text(
+                        listing.brand,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
-                      );
-                    },
+                      ),
+                      subtitle: Text(
+                        'Typ: ${listing.carType}',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Status "Oczekujące" lub "Aktualne" na podstawie isApproved
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: listing.isApproved
+                                  ? Colors.green.withOpacity(0.1)
+                                  : Colors.yellow.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              listing.isApproved ? 'Aktualne' : 'Oczekujące',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: listing.isApproved ? Colors.green : Colors.yellow[800],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          // Status "Wypożyczone" jeśli isAvailable jest false
+                          if (!listing.isAvailable)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'Wypożyczone',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => detailPage.CarListingDetailPage(listing: listing),
+                          ),
+                        );
+                      },
+                    ),
                   );
                 },
               ),

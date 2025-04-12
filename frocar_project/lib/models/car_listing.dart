@@ -11,6 +11,7 @@ class CarListing {
   final int userId;
   final bool isAvailable;
   final double rentalPricePerDay;
+  final bool isApproved; // Nowe pole
 
   CarListing({
     required this.id,
@@ -25,6 +26,7 @@ class CarListing {
     required this.userId,
     required this.isAvailable,
     required this.rentalPricePerDay,
+    required this.isApproved,
   });
 
   factory CarListing.fromJson(Map<String, dynamic> json) {
@@ -39,8 +41,9 @@ class CarListing {
       latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
       longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
       userId: json['userId'] ?? 0,
-      isAvailable: json['isAvailable'] ?? false,
+      isAvailable: json['isAvailable'] as bool? ?? false,
       rentalPricePerDay: (json['rentalPricePerDay'] as num?)?.toDouble() ?? 0.0,
+      isApproved: json['isApproved'] as bool? ?? false,
     );
   }
 
@@ -58,6 +61,7 @@ class CarListing {
       'userId': userId,
       'isAvailable': isAvailable,
       'rentalPricePerDay': rentalPricePerDay,
+      'isApproved': isApproved,
     };
   }
 }

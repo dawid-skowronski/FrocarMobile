@@ -65,6 +65,16 @@ class _RentFormPageState extends State<RentFormPage> {
     }
   }
 
+  // Funkcja obliczająca całkowitą kwotę wypożyczenia
+  double _calculateTotalPrice() {
+    if (startDate == null || endDate == null) {
+      return 0.0;
+    }
+    final days = endDate!.difference(startDate!).inDays;
+    // Używamy rentalPricePerDay zamiast pricePerDay
+    return days * widget.listing.rentalPricePerDay;
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color themeColor = Color(0xFF375534);
@@ -119,6 +129,20 @@ class _RentFormPageState extends State<RentFormPage> {
                 },
                 controller: TextEditingController(
                   text: endDate != null ? endDate.toString().substring(0, 10) : '',
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Wyświetlanie kwoty wypożyczenia
+              Center(
+                child: Text(
+                  startDate != null && endDate != null
+                      ? 'Całkowita kwota: ${_calculateTotalPrice().toStringAsFixed(2)} PLN'
+                      : 'Wybierz daty, aby zobaczyć kwotę',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

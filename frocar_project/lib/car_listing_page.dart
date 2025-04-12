@@ -149,8 +149,9 @@ class _CarListingPageState extends State<CarListingPage> {
           features: features,
           latitude: latitude!,
           longitude: longitude!,
-          userId: 0, 
-          isAvailable: true, 
+          userId: 0, // Backend ustawi UserId na podstawie tokena JWT
+          isAvailable: true,
+          isApproved: false,
           rentalPricePerDay: double.parse(rentalPriceController.text),
         );
         await ApiService().createCarListing(carListing);
