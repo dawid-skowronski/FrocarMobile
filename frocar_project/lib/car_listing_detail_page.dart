@@ -3,15 +3,16 @@ import '/widgets/custom_app_bar.dart';
 import '../models/car_listing.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'rent_form_page.dart';
+import 'car_listing_page.dart'; // Poprawiony import
 
 class CarListingDetailPage extends StatelessWidget {
   final CarListing listing;
+  final _storage = const FlutterSecureStorage();
 
   const CarListingDetailPage({super.key, required this.listing});
 
-  // Funkcja do pobierania adresu na podstawie współrzędnych
   Future<String> getAddressFromCoordinates(double lat, double lon) async {
     final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&addressdetails=1');
@@ -40,14 +41,11 @@ class CarListingDetailPage extends StatelessWidget {
     }
   }
 
-  // Funkcja do pobierania ID aktualnego użytkownika z tokenu JWT (bez jwt_decoder)
   Future<int?> getCurrentUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _storage.read(key: 'token');
     if (token != null) {
-      print('Token from SharedPreferences: $token');
+      print('Token from FlutterSecureStorage: $token');
       try {
-        // Ręczne dekodowanie tokenu JWT
         final parts = token.split('.');
         if (parts.length != 3) {
           throw Exception('Nieprawidłowy token JWT');
@@ -65,7 +63,7 @@ class CarListingDetailPage extends StatelessWidget {
         return null;
       }
     } else {
-      print('Brak tokenu w SharedPreferences');
+      print('Brak tokenu w FlutterSecureStorage');
     }
     return null;
   }
@@ -87,6 +85,7 @@ class CarListingDetailPage extends StatelessWidget {
           print('Listing User ID: ${listing.userId}');
           print('Is Available: ${listing.isAvailable}');
           print('Should show rent button: ${currentUserId != null && listing.userId != currentUserId && listing.isAvailable}');
+          print('Should show edit button: ${currentUserId != null && listing.userId == currentUserId}');
 
           return SingleChildScrollView(
             child: Padding(
@@ -250,31 +249,69 @@ class CarListingDetailPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Przycisk "Wypożycz" - widoczny tylko dla nie-właścicieli
-                  if (currentUserId != null && listing.userId != currentUserId && listing.isAvailable)
-                    Center(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RentFormPage(listing: listing),
+                  // Przyciski akcji
+                  Center(
+                    child: Column(
+                      children: [
+                        // Przycisk "Wypożycz" - widoczny dla nie-właścicieli
+                        if (currentUserId != null &&
+                            listing.userId != currentUserId &&
+                            listing.isAvailable)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => RentFormPage(listing: listing),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: themeColor,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Wypożycz',
+                                style: TextStyle(fontSize: 16, color: Colors.white),
+                              ),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: themeColor,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ),
-                        child: const Text(
-                          'Wypożycz',
-                          style: TextStyle(fontSize: 16, color: Colors.white),
-                        ),
-                      ),
+                        // Przycisk "Edytuj" - widoczny dla właściciela
+                        if (currentUserId != null && listing.userId == currentUserId)
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CarListingPage(listing: listing),
+                                ),
+                              ).then((result) {
+                                if (result == true) {
+                                  // Odśwież stronę lub wróć, aby odświeżyć dane
+                                  Navigator.pop(context, true);
+                                }
+                              });
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: themeColor,
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Edytuj',
+                              style: TextStyle(fontSize: 16, color: Colors.white),
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),

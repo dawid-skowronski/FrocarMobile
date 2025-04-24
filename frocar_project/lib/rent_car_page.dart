@@ -8,10 +8,14 @@ import 'package:test_project/widgets/custom_app_bar.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import 'car_listing_detail_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import 'package:geocoding/geocoding.dart'; // Dla geokodowania
+import 'package:geolocator/geolocator.dart'; // Dla obliczania odległości
 
 class RentCarPage extends StatefulWidget {
+  const RentCarPage({super.key});
+
   @override
   _RentCarPageState createState() => _RentCarPageState();
 }
@@ -25,6 +29,28 @@ class _RentCarPageState extends State<RentCarPage> {
   double _currentZoom = 11.0;
   static const double _zoomThreshold = 14.0;
   int? _currentUserId;
+  final _storage = const FlutterSecureStorage();
+
+  // Stan filtrów
+  String? _filterBrand;
+  int? _minSeats;
+  int? _maxSeats;
+  List<String> _filterFuelTypes = [];
+  double? _minPrice;
+  double? _maxPrice;
+  List<String> _filterCarTypes = [];
+  // Nowe pola dla filtru lokalizacji
+  String? _filterCity;
+  double? _filterRadius;
+  LatLng? _filterCityCoordinates;
+
+  // Dostępne opcje dla filtrów
+  final List<String> _availableFuelTypes = ['Benzyna', 'Diesel', 'Elektryczny', 'Hybryda', 'LPG'];
+  final List<String> _availableCarTypes = [
+    'SUV', 'Sedan', 'Kombi', 'Hatchback', 'Coupe', 'Cabrio', 'Pickup', 'Van',
+    'Minivan', 'Crossover', 'Limuzyna', 'Microcar', 'Roadster', 'Muscle car',
+    'Terenowy', 'Targa'
+  ];
 
   @override
   void initState() {
@@ -34,12 +60,10 @@ class _RentCarPageState extends State<RentCarPage> {
     });
   }
 
-  // Funkcja do pobierania ID aktualnego użytkownika z tokenu JWT
   Future<void> _loadCurrentUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _storage.read(key: 'token');
     if (token != null) {
-      print('Token from SharedPreferences: $token');
+      print('Token from FlutterSecureStorage: $token');
       try {
         final parts = token.split('.');
         if (parts.length != 3) {
@@ -57,7 +81,7 @@ class _RentCarPageState extends State<RentCarPage> {
         _currentUserId = null;
       }
     } else {
-      print('Brak tokenu w SharedPreferences');
+      print('Brak tokenu w FlutterSecureStorage');
       _currentUserId = null;
     }
   }
@@ -67,11 +91,56 @@ class _RentCarPageState extends State<RentCarPage> {
       final carListings = await _apiService.getCarListings();
       setState(() {
         _carListings = carListings.where((listing) {
-          return listing.userId != _currentUserId && listing.isAvailable;
+          // Filtr podstawowy: pomija własne i niedostępne samochody
+          bool matches = listing.userId != _currentUserId && listing.isAvailable;
+
+          // Filtr marki
+          if (_filterBrand != null && _filterBrand!.isNotEmpty) {
+            matches = matches && listing.brand.toLowerCase().contains(_filterBrand!.toLowerCase());
+          }
+
+          // Filtr liczby miejsc
+          if (_minSeats != null) {
+            matches = matches && listing.seats >= _minSeats!;
+          }
+          if (_maxSeats != null) {
+            matches = matches && listing.seats <= _maxSeats!;
+          }
+
+          // Filtr typu paliwa
+          if (_filterFuelTypes.isNotEmpty) {
+            matches = matches && _filterFuelTypes.contains(listing.fuelType);
+          }
+
+          // Filtr ceny za dzień
+          if (_minPrice != null) {
+            matches = matches && listing.rentalPricePerDay >= _minPrice!;
+          }
+          if (_maxPrice != null) {
+            matches = matches && listing.rentalPricePerDay <= _maxPrice!;
+          }
+
+          // Filtr typu samochodu
+          if (_filterCarTypes.isNotEmpty) {
+            matches = matches && _filterCarTypes.contains(listing.carType);
+          }
+
+          // Filtr lokalizacji
+          if (_filterCityCoordinates != null && _filterRadius != null) {
+            final distance = Geolocator.distanceBetween(
+              _filterCityCoordinates!.latitude,
+              _filterCityCoordinates!.longitude,
+              listing.latitude,
+              listing.longitude,
+            ) / 1000; // Dystans w kilometrach
+            matches = matches && distance <= _filterRadius!;
+          }
+
+          return matches;
         }).toList();
         print('Filtered car listings: ${_carListings.length}');
         if (_carListings.isEmpty) {
-          _showErrorDialog('Brak dostępnych aut do wypożyczenia');
+          _showErrorDialog('Brak dostępnych aut spełniających kryteria');
         } else {
           _updateMarkers();
         }
@@ -187,23 +256,20 @@ class _RentCarPageState extends State<RentCarPage> {
     }
   }
 
-  // Funkcja obliczająca całkowitą cenę wypożyczenia
   double _calculateTotalPrice(CarRental rental) {
     final days = rental.rentalEndDate.difference(rental.rentalStartDate).inDays;
     return days * rental.carListing.rentalPricePerDay;
   }
 
-  // Funkcja obliczająca dni do końca wypożyczenia
   int _calculateDaysUntilEnd(CarRental rental) {
     final now = DateTime.now();
     if (rental.rentalEndDate.isBefore(now)) {
-      return 0; // Wypożyczenie już się zakończyło
+      return 0;
     }
     return rental.rentalEndDate.difference(now).inDays;
   }
 
   void _showRentedCarsBottomSheet() {
-    // Zmienna do śledzenia, który element jest rozwinięty
     int? expandedIndex;
 
     showModalBottomSheet(
@@ -365,6 +431,286 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
+  // Zaktualizowany bottom sheet dla filtrów
+  void _showFilterBottomSheet() {
+    final brandController = TextEditingController(text: _filterBrand ?? '');
+    final minSeatsController = TextEditingController(text: _minSeats?.toString() ?? '');
+    final maxSeatsController = TextEditingController(text: _maxSeats?.toString() ?? '');
+    final minPriceController = TextEditingController(text: _minPrice?.toString() ?? '');
+    final maxPriceController = TextEditingController(text: _maxPrice?.toString() ?? '');
+    final cityController = TextEditingController(text: _filterCity ?? '');
+    final radiusController = TextEditingController(text: _filterRadius?.toString() ?? '');
+
+    List<String> tempFuelTypes = List.from(_filterFuelTypes);
+    List<String> tempCarTypes = List.from(_filterCarTypes);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Filtry wyszukiwania',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF375534),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: brandController,
+                      decoration: const InputDecoration(
+                        labelText: 'Marka',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: minSeatsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Min. miejsc',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextField(
+                            controller: maxSeatsController,
+                            decoration: const InputDecoration(
+                              labelText: 'Maks. miejsc',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Typ paliwa',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: _availableFuelTypes.map((fuelType) {
+                        return FilterChip(
+                          label: Text(fuelType),
+                          selected: tempFuelTypes.contains(fuelType),
+                          onSelected: (selected) {
+                            setModalState(() {
+                              if (selected) {
+                                tempFuelTypes.add(fuelType);
+                              } else {
+                                tempFuelTypes.remove(fuelType);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: minPriceController,
+                            decoration: const InputDecoration(
+                              labelText: 'Min. cena (PLN)',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextField(
+                            controller: maxPriceController,
+                            decoration: const InputDecoration(
+                              labelText: 'Maks. cena (PLN)',
+                              border: OutlineInputBorder(),
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Typ samochodu',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: _availableCarTypes.map((carType) {
+                        return FilterChip(
+                          label: Text(carType),
+                          selected: tempCarTypes.contains(carType),
+                          onSelected: (selected) {
+                            setModalState(() {
+                              if (selected) {
+                                tempCarTypes.add(carType);
+                              } else {
+                                tempCarTypes.remove(carType);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Lokalizacja',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: cityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Miasto (np. Warszawa)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: radiusController,
+                      decoration: const InputDecoration(
+                        labelText: 'Promień (km)',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Text(
+                            'Anuluj',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                setModalState(() {
+                                  brandController.clear();
+                                  minSeatsController.clear();
+                                  maxSeatsController.clear();
+                                  minPriceController.clear();
+                                  maxPriceController.clear();
+                                  cityController.clear();
+                                  radiusController.clear();
+                                  tempFuelTypes.clear();
+                                  tempCarTypes.clear();
+                                });
+                              },
+                              child: const Text(
+                                'Wyczyść',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () async {
+                                // Pobierz współrzędne miasta, jeśli podano
+                                LatLng? cityCoordinates;
+                                if (cityController.text.isNotEmpty) {
+                                  try {
+                                    final locations = await locationFromAddress(cityController.text);
+                                    if (locations.isNotEmpty) {
+                                      final location = locations.first;
+                                      cityCoordinates = LatLng(location.latitude, location.longitude);
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Nie znaleziono podanego miasta.'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Błąd podczas wyszukiwania miasta: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+
+                                setState(() {
+                                  _filterBrand = brandController.text.isEmpty ? null : brandController.text;
+                                  _minSeats = minSeatsController.text.isEmpty
+                                      ? null
+                                      : int.tryParse(minSeatsController.text);
+                                  _maxSeats = maxSeatsController.text.isEmpty
+                                      ? null
+                                      : int.tryParse(maxSeatsController.text);
+                                  _filterFuelTypes = tempFuelTypes;
+                                  _minPrice = minPriceController.text.isEmpty
+                                      ? null
+                                      : double.tryParse(minPriceController.text);
+                                  _maxPrice = maxPriceController.text.isEmpty
+                                      ? null
+                                      : double.tryParse(maxPriceController.text);
+                                  _filterCarTypes = tempCarTypes;
+                                  _filterCity = cityController.text.isEmpty ? null : cityController.text;
+                                  _filterRadius = radiusController.text.isEmpty
+                                      ? null
+                                      : double.tryParse(radiusController.text);
+                                  _filterCityCoordinates = cityCoordinates;
+                                  _loadCarListings();
+                                });
+                                Navigator.pop(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF375534),
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Zastosuj'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -387,11 +733,25 @@ class _RentCarPageState extends State<RentCarPage> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showRentedCarsBottomSheet,
-        backgroundColor: const Color(0xFF375534),
-        child: const Icon(Icons.car_rental, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: _showFilterBottomSheet,
+            backgroundColor: const Color(0xFF375534),
+            child: const Icon(Icons.filter_list, color: Colors.white),
+            heroTag: 'filterButton',
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: _showRentedCarsBottomSheet,
+            backgroundColor: const Color(0xFF375534),
+            child: const Icon(Icons.car_rental, color: Colors.white),
+            heroTag: 'rentedCarsButton',
+          ),
+        ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
     );
   }
 

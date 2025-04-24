@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ThemeProvider with ChangeNotifier {
   late ThemeMode _themeMode;
+  final _storage = const FlutterSecureStorage();
 
   ThemeProvider() {
     _loadTheme();
@@ -19,14 +20,13 @@ class ThemeProvider with ChangeNotifier {
   }
 
   Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isDark = prefs.getBool('isDarkMode') ?? false;
+    final isDarkString = await _storage.read(key: 'isDarkMode');
+    final isDark = isDarkString == 'true'; // Domyślnie false, jeśli null
     _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     notifyListeners();
   }
 
   Future<void> _saveTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDarkMode);
+    await _storage.write(key: 'isDarkMode', value: isDarkMode.toString());
   }
 }

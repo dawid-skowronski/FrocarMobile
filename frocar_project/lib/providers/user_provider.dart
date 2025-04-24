@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
 class UserProvider with ChangeNotifier {
   int? _userId;
+  final _storage = const FlutterSecureStorage();
 
   int? get userId => _userId;
 
@@ -12,8 +13,8 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<void> _loadUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    // Odczyt tokenu z FlutterSecureStorage
+    final token = await _storage.read(key: 'token');
     if (token != null) {
       try {
         final decodedToken = JwtDecoder.decode(token);
@@ -31,8 +32,8 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
+    // Usunięcie tokenu z FlutterSecureStorage
+    await _storage.delete(key: 'token');
     _userId = null;
     notifyListeners();
   }

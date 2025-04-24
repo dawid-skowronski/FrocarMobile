@@ -71,7 +71,6 @@ class _RentFormPageState extends State<RentFormPage> {
       return 0.0;
     }
     final days = endDate!.difference(startDate!).inDays;
-    // Używamy rentalPricePerDay zamiast pricePerDay
     return days * widget.listing.rentalPricePerDay;
   }
 

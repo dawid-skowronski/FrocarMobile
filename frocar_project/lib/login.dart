@@ -1,8 +1,7 @@
-// lib/login.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
 import '/widgets/loading_screen.dart';
 
@@ -18,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   String _message = '';
   bool _obscurePassword = true;
+  final _storage = const FlutterSecureStorage();
 
   Future<void> _login() async {
     final url = Uri.parse('http://localhost:5001/api/account/login');
@@ -35,9 +35,9 @@ class _LoginScreenState extends State<LoginScreen> {
       final token = responseBody['token'];
       final username = _usernameController.text;
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', token);
-      await prefs.setString('username', username);
+      // Zapisywanie tokenu i nazwy użytkownika w FlutterSecureStorage
+      await _storage.write(key: 'token', value: token);
+      await _storage.write(key: 'username', value: username);
 
       setState(() {
         _message = 'Logowanie udane!';

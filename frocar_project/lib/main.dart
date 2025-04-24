@@ -1,6 +1,5 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:test_project/providers/theme_provider.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
@@ -11,8 +10,13 @@ import 'register.dart';
 import '/widgets/loading_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:simple_gradient_text/simple_gradient_text.dart';
+import 'profile_page.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // Import flutter_dotenv
 
-void main() {
+Future<void> main() async {
+  // Załaduj plik .env przed uruchomieniem aplikacji
+  await dotenv.load(fileName: ".env");
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => ThemeProvider(),
@@ -33,12 +37,12 @@ class MyApp extends StatelessWidget {
       themeMode: themeProvider.themeMode,
       theme: ThemeData(
         brightness: Brightness.light,
-        scaffoldBackgroundColor: Color(0xFFE0E0E0),
+        scaffoldBackgroundColor: const Color(0xFFE0E0E0),
         primaryColor: Colors.green,
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: Color(0xFF121212),
+        scaffoldBackgroundColor: const Color(0xFF121212),
         primaryColor: Colors.green,
       ),
       initialRoute: '/splash',
@@ -47,14 +51,16 @@ class MyApp extends StatelessWidget {
         '/': (context) => HomePage(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
-        '/rentCar': (context) => RentCarPage(),
+        '/rentCar': (context) => const RentCarPage(),
         '/offerCar': (context) => OfferCarPage(),
         '/loading': (context) => const LoadingScreen(),
+        '/profile': (context) => const ProfilePage(),
       },
     );
   }
 }
 
+// Reszta kodu (HomePage, _HomePageState) pozostaje bez zmian
 class HomePage extends StatefulWidget {
   @override
   _HomePageState createState() => _HomePageState();
@@ -63,6 +69,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String? _username = '';
   double _dragOffset = 0.0;
+  final _storage = const FlutterSecureStorage();
 
   @override
   void initState() {
@@ -71,9 +78,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   _getUsername() async {
-    final prefs = await SharedPreferences.getInstance();
+    final username = await _storage.read(key: 'username');
     setState(() {
-      _username = prefs.getString('username') ?? '';
+      _username = username ?? '';
     });
   }
 
@@ -137,7 +144,7 @@ class _HomePageState extends State<HomePage> {
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
-                      colors: [Color(0xFF6B9071), Color(0xFF60A16B)],
+                      colors: [const Color(0xFF6B9071), const Color(0xFF60A16B)],
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -151,7 +158,7 @@ class _HomePageState extends State<HomePage> {
                       style: GoogleFonts.montserrat(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFFAEC3B0),
+                        color: const Color(0xFFAEC3B0),
                       ),
                     ),
                   ),
@@ -165,7 +172,7 @@ class _HomePageState extends State<HomePage> {
                       style: GoogleFonts.montserrat(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFFAEC3B0),
+                        color: const Color(0xFFAEC3B0),
                       ),
                     ),
                   ),
@@ -178,9 +185,31 @@ class _HomePageState extends State<HomePage> {
                       height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Color(0xFF6B9071).withOpacity(0.8),
+                        color: const Color(0xFF6B9071).withOpacity(0.8),
                       ),
                       child: const Icon(Icons.swap_vert, size: 40, color: Colors.white),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 16.0,
+                    left: 16.0,
+                    right: 16.0,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/profile');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF375534),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      child: const Text(
+                        'Profil',
+                        style: TextStyle(fontSize: 18),
+                      ),
                     ),
                   ),
                 ],
@@ -195,14 +224,14 @@ class _HomePageState extends State<HomePage> {
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                           ),
-                          colors: [Color(0xFF6B9071), Color(0xFF60A16B)],
+                          colors: [const Color(0xFF6B9071), const Color(0xFF60A16B)],
                           textAlign: TextAlign.center,
                         ),
-                        SizedBox(height: 20),
+                        const SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: () => Navigator.pushNamed(context, '/login'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF375534),
+                            backgroundColor: const Color(0xFF375534),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -218,11 +247,11 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ),
-                        SizedBox(height: 10),
+                        const SizedBox(height: 10),
                         ElevatedButton(
                           onPressed: () => Navigator.pushNamed(context, '/register'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFF375534),
+                            backgroundColor: const Color(0xFF375534),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -251,7 +280,7 @@ class _HomePageState extends State<HomePage> {
             child: IgnorePointer(
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 100),
-                color: Color(0xFF375534).withOpacity(_getOverlayOpacity()),
+                color: const Color(0xFF375534).withOpacity(_getOverlayOpacity()),
               ),
             ),
           ),

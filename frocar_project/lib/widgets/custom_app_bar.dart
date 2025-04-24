@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:test_project/providers/theme_provider.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
+  final _storage = const FlutterSecureStorage();
 
   const CustomAppBar({Key? key, required this.title}) : super(key: key);
 
@@ -52,13 +53,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Future<String?> _getUsername() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('username');
+    return await _storage.read(key: 'username');
   }
 
   void _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-
     bool? shouldLogout = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -78,8 +76,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
 
     if (shouldLogout == true) {
-      await prefs.remove('token');
-      await prefs.remove('username');
+      await _storage.delete(key: 'token');
+      await _storage.delete(key: 'username');
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/',

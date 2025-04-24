@@ -7,9 +7,12 @@ import 'package:provider/provider.dart';
 import 'package:test_project/providers/theme_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class CarListingPage extends StatefulWidget {
-  const CarListingPage({super.key});
+  final CarListing? listing; // Opcjonalny parametr dla edycji
+
+  const CarListingPage({super.key, this.listing});
 
   @override
   _CarListingPageState createState() => _CarListingPageState();
@@ -27,8 +30,9 @@ class _CarListingPageState extends State<CarListingPage> {
   final featureController = TextEditingController();
   double? latitude;
   double? longitude;
-  String? displayAddress; // Przechowuje sformatowany adres
+  String? displayAddress;
   bool isLoading = false;
+  final _storage = const FlutterSecureStorage();
 
   final List<String> fuelTypes = [
     'Benzyna',
@@ -56,7 +60,24 @@ class _CarListingPageState extends State<CarListingPage> {
     'Targa'
   ];
 
-  // Funkcja do wybierania lokalizacji na mapie
+  @override
+  void initState() {
+    super.initState();
+    // Jeśli przekazano listing, wstępnie wypełnij formularz
+    if (widget.listing != null) {
+      brandController.text = widget.listing!.brand;
+      engineCapacityController.text = widget.listing!.engineCapacity.toString();
+      seatsController.text = widget.listing!.seats.toString();
+      rentalPriceController.text = widget.listing!.rentalPricePerDay.toString();
+      fuelType = widget.listing!.fuelType;
+      carType = widget.listing!.carType;
+      features = List.from(widget.listing!.features);
+      latitude = widget.listing!.latitude;
+      longitude = widget.listing!.longitude;
+      _reverseGeocode(latitude!, longitude!); // Pobierz adres
+    }
+  }
+
   Future<void> _selectLocation() async {
     final selectedLocation = await Navigator.push(
       context,
@@ -66,23 +87,19 @@ class _CarListingPageState extends State<CarListingPage> {
       setState(() {
         latitude = selectedLocation.latitude;
         longitude = selectedLocation.longitude;
-        displayAddress = null; // Resetujemy adres, aby pobrać nowy
+        displayAddress = null;
       });
-      // Po wybraniu lokalizacji, konwertujemy współrzędne na adres
       await _reverseGeocode(latitude!, longitude!);
     }
   }
 
-  // Funkcja do odwrotnego geokodowania (współrzędne -> adres)
   Future<void> _reverseGeocode(double lat, double lon) async {
     setState(() {
       isLoading = true;
     });
 
     try {
-      // Dodajemy opóźnienie, aby uniknąć przekroczenia limitu Nominatim
       await Future.delayed(const Duration(seconds: 1));
-
       final url = Uri.parse(
           'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&addressdetails=1');
       final response = await http.get(
@@ -139,8 +156,12 @@ class _CarListingPageState extends State<CarListingPage> {
         isLoading = true;
       });
       try {
+        final token = await _storage.read(key: 'token');
+        if (token == null) {
+          throw Exception('Brak tokenu. Zaloguj się ponownie.');
+        }
         final carListing = CarListing(
-          id: 0, // ID będzie ustawione przez backend
+          id: widget.listing?.id ?? 0, // Zachowaj ID dla edycji
           brand: brandController.text,
           engineCapacity: double.parse(engineCapacityController.text),
           fuelType: fuelType!,
@@ -149,23 +170,35 @@ class _CarListingPageState extends State<CarListingPage> {
           features: features,
           latitude: latitude!,
           longitude: longitude!,
-          userId: 0, // Backend ustawi UserId na podstawie tokena JWT
-          isAvailable: true,
-          isApproved: false,
+          userId: widget.listing?.userId ?? 0,
+          isAvailable: widget.listing?.isAvailable ?? true,
+          isApproved: widget.listing?.isApproved ?? false,
           rentalPricePerDay: double.parse(rentalPriceController.text),
         );
-        await ApiService().createCarListing(carListing);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ogłoszenie dodane pomyślnie'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (widget.listing == null) {
+          // Dodawanie nowego ogłoszenia
+          await ApiService().createCarListing(carListing);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ogłoszenie dodane pomyślnie'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          // Edycja istniejącego ogłoszenia
+          await ApiService().updateCarListing(carListing);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Ogłoszenie zaktualizowane pomyślnie'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
         Navigator.pop(context, true);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Błąd podczas dodawania ogłoszenia: $e'),
+            content: Text('Błąd podczas zapisywania ogłoszenia: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -217,7 +250,7 @@ class _CarListingPageState extends State<CarListingPage> {
     final isDarkMode = themeProvider.isDarkMode;
 
     return Scaffold(
-      appBar: const CustomAppBar(title: "Dodaj ogłoszenie"),
+      appBar: CustomAppBar(title: widget.listing == null ? "Dodaj ogłoszenie" : "Edytuj ogłoszenie"),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -230,10 +263,8 @@ class _CarListingPageState extends State<CarListingPage> {
               TextFormField(
                 controller: brandController,
                 decoration: _inputDecoration('Marka'),
-                validator: (value) =>
-                value!.isEmpty ? 'Pole wymagane' : null,
-                style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
+                validator: (value) => value!.isEmpty ? 'Pole wymagane' : null,
+                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -242,36 +273,30 @@ class _CarListingPageState extends State<CarListingPage> {
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value!.isEmpty) return 'Pole wymagane';
-                  if (double.tryParse(value) == null)
-                    return 'Podaj liczbę';
-                  if (double.parse(value) <= 0)
-                    return 'Pojemność musi być większa od 0';
+                  if (double.tryParse(value) == null) return 'Podaj liczbę';
+                  if (double.parse(value) <= 0) return 'Pojemność musi być większa od 0';
                   return null;
                 },
-                style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
+                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: () => _showSelectionDialog(
-                    context, 'Wybierz rodzaj paliwa', fuelTypes,
+                onTap: () => _showSelectionDialog(context, 'Wybierz rodzaj paliwa', fuelTypes,
                         (selected) {
                       setState(() => fuelType = selected);
                     }),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+                    border:
+                    Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                          fuelType ?? 'Wybierz rodzaj paliwa',
+                      Text(fuelType ?? 'Wybierz rodzaj paliwa',
                           style: TextStyle(
                               fontSize: 16,
                               color: isDarkMode ? Colors.white : Colors.black)),
@@ -289,34 +314,29 @@ class _CarListingPageState extends State<CarListingPage> {
                 validator: (value) {
                   if (value!.isEmpty) return 'Pole wymagane';
                   if (int.tryParse(value) == null) return 'Podaj liczbę';
-                  if (int.parse(value) <= 0)
-                    return 'Liczba miejsc musi być większa od 0';
+                  if (int.parse(value) <= 0) return 'Liczba miejsc musi być większa od 0';
                   return null;
                 },
-                style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
+                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: () => _showSelectionDialog(
-                    context, 'Wybierz typ samochodu', carTypes,
+                onTap: () => _showSelectionDialog(context, 'Wybierz typ samochodu', carTypes,
                         (selected) {
                       setState(() => carType = selected);
                     }),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+                    border:
+                    Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                          carType ?? 'Wybierz typ samochodu',
+                      Text(carType ?? 'Wybierz typ samochodu',
                           style: TextStyle(
                               fontSize: 16,
                               color: isDarkMode ? Colors.white : Colors.black)),
@@ -333,14 +353,11 @@ class _CarListingPageState extends State<CarListingPage> {
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value!.isEmpty) return 'Pole wymagane';
-                  if (double.tryParse(value) == null)
-                    return 'Podaj liczbę';
-                  if (double.parse(value) <= 0)
-                    return 'Cena musi być większa od 0';
+                  if (double.tryParse(value) == null) return 'Podaj liczbę';
+                  if (double.parse(value) <= 0) return 'Cena musi być większa od 0';
                   return null;
                 },
-                style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
+                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
               ),
               const SizedBox(height: 12),
               Padding(
@@ -357,8 +374,8 @@ class _CarListingPageState extends State<CarListingPage> {
                     child: TextField(
                       controller: featureController,
                       decoration: _inputDecoration('Np. Klimatyzacja'),
-                      style: TextStyle(
-                          color: isDarkMode ? Colors.white : Colors.black),
+                      style:
+                      TextStyle(color: isDarkMode ? Colors.white : Colors.black),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -381,7 +398,6 @@ class _CarListingPageState extends State<CarListingPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              // Wyświetlanie dodanych dodatków z możliwością usunięcia
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -403,7 +419,6 @@ class _CarListingPageState extends State<CarListingPage> {
                 }).toList(),
               ),
               const SizedBox(height: 24),
-              // Wybór lokalizacji na mapie
               Container(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -418,7 +433,6 @@ class _CarListingPageState extends State<CarListingPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              // Wyświetlanie wybranego adresu
               if (displayAddress != null) ...[
                 Padding(
                   padding: const EdgeInsets.all(5),
@@ -447,8 +461,10 @@ class _CarListingPageState extends State<CarListingPage> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     textStyle: const TextStyle(fontSize: 18),
                   ),
-                  child: const Text('Dodaj ogłoszenie',
-                      style: TextStyle(color: Colors.white)),
+                  child: Text(
+                    widget.listing == null ? 'Dodaj ogłoszenie' : 'Zapisz zmiany',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ),
             ],
