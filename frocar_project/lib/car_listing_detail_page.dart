@@ -5,13 +5,17 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'rent_form_page.dart';
-import 'car_listing_page.dart'; // Poprawiony import
+import 'car_listing_page.dart';
+import '../services/api_service.dart';
+import '../models/car_rental_review.dart';
+import 'car_reviews_page.dart';
 
 class CarListingDetailPage extends StatelessWidget {
   final CarListing listing;
   final _storage = const FlutterSecureStorage();
+  final ApiService _apiService = ApiService();
 
-  const CarListingDetailPage({super.key, required this.listing});
+  CarListingDetailPage({super.key, required this.listing});
 
   Future<String> getAddressFromCoordinates(double lat, double lon) async {
     final url = Uri.parse(
@@ -44,7 +48,6 @@ class CarListingDetailPage extends StatelessWidget {
   Future<int?> getCurrentUserId() async {
     final token = await _storage.read(key: 'token');
     if (token != null) {
-      print('Token from FlutterSecureStorage: $token');
       try {
         final parts = token.split('.');
         if (parts.length != 3) {
@@ -53,17 +56,12 @@ class CarListingDetailPage extends StatelessWidget {
         final payload = parts[1];
         final decodedPayload = utf8.decode(base64.decode(base64.normalize(payload)));
         final decoded = jsonDecode(decodedPayload) as Map<String, dynamic>;
-        print('Decoded token: $decoded');
         final userId = int.parse(
             decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ?? '0');
-        print('Current User ID: $userId');
         return userId;
       } catch (e) {
-        print('Błąd dekodowania tokenu: $e');
         return null;
       }
-    } else {
-      print('Brak tokenu w FlutterSecureStorage');
     }
     return null;
   }
@@ -82,10 +80,6 @@ class CarListingDetailPage extends StatelessWidget {
           }
 
           final currentUserId = userSnapshot.data;
-          print('Listing User ID: ${listing.userId}');
-          print('Is Available: ${listing.isAvailable}');
-          print('Should show rent button: ${currentUserId != null && listing.userId != currentUserId && listing.isAvailable}');
-          print('Should show edit button: ${currentUserId != null && listing.userId == currentUserId}');
 
           return SingleChildScrollView(
             child: Padding(
@@ -249,11 +243,112 @@ class CarListingDetailPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // Przyciski akcji
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Recenzje',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: themeColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          FutureBuilder<List<CarRentalReview>>(
+                            future: _apiService.getReviewsForListing(listing.id),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              } else if (snapshot.hasError) {
+                                return const Text(
+                                  'Błąd podczas pobierania recenzji',
+                                  style: TextStyle(color: Colors.red),
+                                );
+                              } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                final reviews = snapshot.data!;
+                                final averageRating = reviews.isNotEmpty
+                                    ? reviews.map((r) => r.rating).reduce((a, b) => a + b) / reviews.length
+                                    : 0.0;
+                                final latestReview = reviews.first;
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.star, color: Colors.amber, size: 24),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Średnia ocena: ${averageRating.toStringAsFixed(1)} (${reviews.length} opinii)',
+                                          style: const TextStyle(fontSize: 16),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'Najnowsza opinia:',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      latestReview.comment ?? 'Brak komentarza',
+                                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Autor: ${latestReview.user.username} (${latestReview.createdAt.toString().substring(0, 10)})',
+                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Center(
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => CarReviewsPage(listingId: listing.id),
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: themeColor,
+                                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Więcej',
+                                          style: TextStyle(fontSize: 16, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              } else {
+                                return const Text(
+                                  'Brak recenzji dla tego pojazdu.',
+                                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Center(
                     child: Column(
                       children: [
-                        // Przycisk "Wypożycz" - widoczny dla nie-właścicieli
                         if (currentUserId != null &&
                             listing.userId != currentUserId &&
                             listing.isAvailable)
@@ -281,7 +376,6 @@ class CarListingDetailPage extends StatelessWidget {
                               ),
                             ),
                           ),
-                        // Przycisk "Edytuj" - widoczny dla właściciela
                         if (currentUserId != null && listing.userId == currentUserId)
                           ElevatedButton(
                             onPressed: () {
@@ -292,7 +386,6 @@ class CarListingDetailPage extends StatelessWidget {
                                 ),
                               ).then((result) {
                                 if (result == true) {
-                                  // Odśwież stronę lub wróć, aby odświeżyć dane
                                   Navigator.pop(context, true);
                                 }
                               });

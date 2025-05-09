@@ -161,7 +161,7 @@ class _CarListingPageState extends State<CarListingPage> {
           throw Exception('Brak tokenu. Zaloguj się ponownie.');
         }
         final carListing = CarListing(
-          id: widget.listing?.id ?? 0, // Zachowaj ID dla edycji
+          id: widget.listing?.id ?? 0,
           brand: brandController.text,
           engineCapacity: double.parse(engineCapacityController.text),
           fuelType: fuelType!,
@@ -174,6 +174,7 @@ class _CarListingPageState extends State<CarListingPage> {
           isAvailable: widget.listing?.isAvailable ?? true,
           isApproved: widget.listing?.isApproved ?? false,
           rentalPricePerDay: double.parse(rentalPriceController.text),
+          averageRating: widget.listing?.averageRating ?? 0.0, // Dodaj to
         );
         if (widget.listing == null) {
           // Dodawanie nowego ogłoszenia

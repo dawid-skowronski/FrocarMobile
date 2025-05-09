@@ -57,5 +57,6 @@ flutter:
   assets:
   - .env
   - assets/frocar_logo.png
+  - assets/car.png
   - assets/map_styles/light_mode.json
   - assets/map_styles/dark_mode.json

@@ -30,7 +30,22 @@ class CarRental {
       rentalEndDate: DateTime.parse(json['rentalEndDate']),
       rentalPrice: json['rentalPrice'].toDouble(),
       rentalStatus: json['rentalStatus'],
-      carListing: CarListing.fromJson(json['carListing']),
+      carListing: json['carListing'] != null
+          ? CarListing.fromJson(json['carListing'])
+          : CarListing.placeholder(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'carRentalId': carRentalId,
+      'carListingId': carListingId,
+      'userId': userId,
+      'rentalStartDate': rentalStartDate.toIso8601String(),
+      'rentalEndDate': rentalEndDate.toIso8601String(),
+      'rentalPrice': rentalPrice,
+      'rentalStatus': rentalStatus,
+      'carListing': carListing.toJson(),
+    };
   }
 }

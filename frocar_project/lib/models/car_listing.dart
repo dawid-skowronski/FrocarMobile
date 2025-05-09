@@ -11,7 +11,8 @@ class CarListing {
   final int userId;
   final bool isAvailable;
   final double rentalPricePerDay;
-  final bool isApproved; // Nowe pole
+  final bool isApproved;
+  final double averageRating;
 
   CarListing({
     required this.id,
@@ -27,6 +28,7 @@ class CarListing {
     required this.isAvailable,
     required this.rentalPricePerDay,
     required this.isApproved,
+    required this.averageRating,
   });
 
   factory CarListing.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,7 @@ class CarListing {
       isAvailable: json['isAvailable'] as bool? ?? false,
       rentalPricePerDay: (json['rentalPricePerDay'] as num?)?.toDouble() ?? 0.0,
       isApproved: json['isApproved'] as bool? ?? false,
+      averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -62,6 +65,26 @@ class CarListing {
       'isAvailable': isAvailable,
       'rentalPricePerDay': rentalPricePerDay,
       'isApproved': isApproved,
+      'averageRating': averageRating,
     };
+  }
+
+  factory CarListing.placeholder() {
+    return CarListing(
+      id: 0,
+      brand: 'Brak danych',
+      engineCapacity: 0.0,
+      fuelType: 'Brak danych',
+      seats: 0,
+      carType: 'Brak danych',
+      features: [],
+      latitude: 0.0,
+      longitude: 0.0,
+      userId: 0,
+      isAvailable: false,
+      rentalPricePerDay: 0.0,
+      isApproved: false,
+      averageRating: 0.0,
+    );
   }
 }
