@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/car_listing.dart';
 import '../services/api_service.dart';
+import '../widgets/custom_app_bar.dart';
 
 class RentFormPage extends StatefulWidget {
   final CarListing listing;
@@ -15,7 +17,6 @@ class _RentFormPageState extends State<RentFormPage> {
   DateTime? startDate;
   DateTime? endDate;
   final _formKey = GlobalKey<FormState>();
-  final ApiService _apiService = ApiService();
 
   Future<void> _selectStartDate() async {
     final picked = await showDatePicker(
@@ -48,7 +49,8 @@ class _RentFormPageState extends State<RentFormPage> {
   Future<void> _submit() async {
     if (_formKey.currentState!.validate()) {
       try {
-        await _apiService.createCarRental(
+        final apiService = Provider.of<ApiService>(context, listen: false);
+        await apiService.createCarRental(
           widget.listing.id,
           startDate!,
           endDate!,
@@ -65,7 +67,6 @@ class _RentFormPageState extends State<RentFormPage> {
     }
   }
 
-  // Funkcja obliczająca całkowitą kwotę wypożyczenia
   double _calculateTotalPrice() {
     if (startDate == null || endDate == null) {
       return 0.0;
@@ -79,7 +80,12 @@ class _RentFormPageState extends State<RentFormPage> {
     const Color themeColor = Color(0xFF375534);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Wypożycz auto')),
+      appBar: CustomAppBar(
+        title: 'Wypożycz auto',
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -131,7 +137,6 @@ class _RentFormPageState extends State<RentFormPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              // Wyświetlanie kwoty wypożyczenia
               Center(
                 child: Text(
                   startDate != null && endDate != null

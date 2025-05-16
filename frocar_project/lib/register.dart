@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:provider/provider.dart';
+import 'package:test_project/services/api_service.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -33,39 +33,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _message = '';
     });
 
-    final url = Uri.parse('http://localhost:5001/api/account/register');
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'Username': _usernameController.text,
-          'Email': _emailController.text,
-          'Password': _passwordController.text,
-          'ConfirmPassword': _confirmPasswordController.text,
-        }),
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      await apiService.register(
+        _usernameController.text,
+        _emailController.text,
+        _passwordController.text,
+        _confirmPasswordController.text,
       );
 
-      if (response.statusCode == 200) {
-        final responseBody = json.decode(response.body);
-        setState(() {
-          _message = responseBody['message'] ?? 'Zarejestrowano pomyślnie';
-        });
+      setState(() {
+        _message = 'Zarejestrowano pomyślnie';
+      });
 
-        Navigator.pushReplacementNamed(context, '/login');
-      } else if (response.statusCode == 400) {
-        final responseBody = json.decode(response.body);
-        setState(() {
-          _message = responseBody['message'] ?? 'Wystąpił błąd';
-        });
-      } else {
-        setState(() {
-          _message = 'Wystąpił nieznany błąd';
-        });
-      }
+      Navigator.pushReplacementNamed(context, '/login');
     } catch (e) {
       setState(() {
-        _message = 'Błąd połączenia: $e';
+        _message = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
       setState(() {
@@ -77,7 +61,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(title: "Rejestracja"),
+      appBar: CustomAppBar(
+        title: "Rejestracja",
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -125,7 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ElevatedButton(
               onPressed: _isLoading ? null : _register,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF375534),
+                backgroundColor: const Color(0xFF375534),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),

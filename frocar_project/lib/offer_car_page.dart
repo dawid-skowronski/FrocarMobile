@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/models/car_listing.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
-import 'car_listing_page.dart' as listingPage; // Alias dla car_listing_page.dart
-import 'car_listing_detail_page.dart' as detailPage; // Alias dla car_listing_detail_page.dart
+import 'car_listing_page.dart' as listingPage;
+import 'car_listing_detail_page.dart' as detailPage;
 
 class OfferCarPage extends StatefulWidget {
   const OfferCarPage({super.key});
@@ -31,6 +31,12 @@ class _OfferCarPageState extends State<OfferCarPage> {
         _isLoading = false;
       });
     } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Błąd: ${e.toString().replaceFirst('Exception: ', '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
       setState(() {
         _userListings = [];
         _isLoading = false;
@@ -41,13 +47,17 @@ class _OfferCarPageState extends State<OfferCarPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(title: "Zarządzaj ogłoszeniami"),
+      appBar: CustomAppBar(
+        title: "Zarządzaj ogłoszeniami",
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Panel "Dodaj nowe ogłoszenie"
             GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -55,7 +65,7 @@ class _OfferCarPageState extends State<OfferCarPage> {
                   MaterialPageRoute(builder: (context) => const listingPage.CarListingPage()),
                 ).then((result) {
                   if (result == true) {
-                    _loadUserListings(); // Odśwież listę tylko, jeśli dodano ogłoszenie
+                    _loadUserListings();
                   }
                 });
               },
@@ -79,7 +89,6 @@ class _OfferCarPageState extends State<OfferCarPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // Panel "Moje ogłoszenia"
             const Text(
               'Moje ogłoszenia',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -124,7 +133,6 @@ class _OfferCarPageState extends State<OfferCarPage> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Status "Oczekujące" lub "Aktualne" na podstawie isApproved
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             margin: const EdgeInsets.only(right: 8),
@@ -143,7 +151,6 @@ class _OfferCarPageState extends State<OfferCarPage> {
                               ),
                             ),
                           ),
-                          // Status "Wypożyczone" jeśli isAvailable jest false
                           if (!listing.isAvailable)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

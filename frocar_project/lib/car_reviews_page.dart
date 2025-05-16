@@ -14,17 +14,22 @@ class CarReviewsPage extends StatelessWidget {
     final ApiService apiService = ApiService();
 
     return Scaffold(
-      appBar: const CustomAppBar(title: "Recenzje pojazdu"),
+      appBar: CustomAppBar(
+        title: "Recenzje pojazdu",
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: FutureBuilder<List<CarRentalReview>>(
         future: apiService.getReviewsForListing(listingId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return const Center(
+            return Center(
               child: Text(
-                'Błąd podczas pobierania recenzji',
-                style: TextStyle(fontSize: 16, color: Colors.red),
+                'Błąd: ${snapshot.error.toString().replaceFirst('Exception: ', '')}',
+                style: const TextStyle(fontSize: 16, color: Colors.red),
               ),
             );
           } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {

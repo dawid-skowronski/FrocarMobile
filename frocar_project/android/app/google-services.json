@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "640070465720",
+    "project_id": "frocar-67e95",
+    "storage_bucket": "frocar-67e95.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:640070465720:android:00ed93e33f2880806d5c4d",
+        "android_client_info": {
+          "package_name": "com.example.frocar_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

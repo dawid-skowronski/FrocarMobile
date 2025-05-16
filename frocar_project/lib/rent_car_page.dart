@@ -24,7 +24,6 @@ class RentCarPage extends StatefulWidget {
 
 class _RentCarPageState extends State<RentCarPage> {
   GoogleMapController? _controller;
-  final ApiService _apiService = ApiService();
   final Set<Marker> _markers = {};
   List<CarListing> _carListings = [];
   static const LatLng _center = LatLng(52.2296756, 21.0122287);
@@ -32,7 +31,6 @@ class _RentCarPageState extends State<RentCarPage> {
   static const double _zoomThreshold = 14.0;
   int? _currentUserId;
   final _storage = const FlutterSecureStorage();
-
 
   String? _filterBrand;
   int? _minSeats;
@@ -63,7 +61,6 @@ class _RentCarPageState extends State<RentCarPage> {
   Future<void> _loadCurrentUserId() async {
     final token = await _storage.read(key: 'token');
     if (token != null) {
-      print('Token from FlutterSecureStorage: $token');
       try {
         final parts = token.split('.');
         if (parts.length != 3) {
@@ -72,23 +69,20 @@ class _RentCarPageState extends State<RentCarPage> {
         final payload = parts[1];
         final decodedPayload = utf8.decode(base64.decode(base64.normalize(payload)));
         final decoded = jsonDecode(decodedPayload) as Map<String, dynamic>;
-        print('Decoded token: $decoded');
         _currentUserId = int.parse(
             decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ?? '0');
-        print('Current User ID: $_currentUserId');
       } catch (e) {
-        print('Błąd dekodowania tokenu: $e');
         _currentUserId = null;
       }
     } else {
-      print('Brak tokenu w FlutterSecureStorage');
       _currentUserId = null;
     }
   }
 
   Future<void> _loadCarListings() async {
     try {
-      final carListings = await _apiService.getCarListings();
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final carListings = await apiService.getCarListings();
       setState(() {
         _carListings = carListings.where((listing) {
           bool matches = listing.userId != _currentUserId && listing.isAvailable;
@@ -131,7 +125,6 @@ class _RentCarPageState extends State<RentCarPage> {
 
           return matches;
         }).toList();
-        print('Filtered car listings: ${_carListings.length}');
         if (_carListings.isEmpty) {
           _showErrorDialog('Brak dostępnych aut spełniających kryteria');
         } else {
@@ -139,7 +132,7 @@ class _RentCarPageState extends State<RentCarPage> {
         }
       });
     } catch (e) {
-      _showErrorDialog('Brak dostępnych aut do wypożyczenia');
+      _showErrorDialog('Brak dostępnych aut do wypożyczenia: ${e.toString().replaceFirst('Exception: ', '')}');
     }
   }
 
@@ -272,11 +265,35 @@ class _RentCarPageState extends State<RentCarPage> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return FutureBuilder<List<CarRental>>(
-              future: _apiService.getUserCarRentals(),
+              future: Provider.of<ApiService>(context, listen: false).getUserCarRentals(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError || !snapshot.hasData) {
+                } else if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.directions_car,
+                          size: 48,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          snapshot.error.toString().replaceFirst('Exception: ', ''),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -289,7 +306,7 @@ class _RentCarPageState extends State<RentCarPage> {
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          'Błąd podczas pobierania wypożyczeń',
+                          'Brak wypożyczeń',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -301,36 +318,7 @@ class _RentCarPageState extends State<RentCarPage> {
                     ),
                   );
                 } else {
-                  final allRentals = snapshot.data!;
-                  print('All rentals: ${allRentals.map((r) => r.toJson()).toList()}');
-
-                  if (allRentals.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.directions_car,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Brak wypożyczeń',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final filteredRentals = allRentals.where((rental) {
+                  final filteredRentals = snapshot.data!.where((rental) {
                     return showEndedRentals || rental.rentalStatus != 'Ended';
                   }).toList();
 
@@ -395,16 +383,19 @@ class _RentCarPageState extends State<RentCarPage> {
                             itemBuilder: (context, index) {
                               final rental = filteredRentals[index];
                               return FutureBuilder<List<CarRentalReview>>(
-                                future: _apiService.getReviewsForListing(rental.carListingId),
+                                future: Provider.of<ApiService>(context, listen: false)
+                                    .getReviewsForListing(rental.carListingId),
                                 builder: (context, reviewSnapshot) {
                                   bool canAddReview = false;
                                   if (reviewSnapshot.hasData) {
                                     final reviews = reviewSnapshot.data!;
-                                    canAddReview = !reviews.any((review) => review.carRentalId == rental.carRentalId);
+                                    canAddReview =
+                                    !reviews.any((review) => review.carRentalId == rental.carRentalId);
                                   }
 
                                   return Card(
-                                    margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                    margin:
+                                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                                     elevation: 4,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -457,7 +448,8 @@ class _RentCarPageState extends State<RentCarPage> {
                                       ),
                                       children: [
                                         Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 16.0, vertical: 8.0),
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
@@ -521,7 +513,8 @@ class _RentCarPageState extends State<RentCarPage> {
                                                     },
                                                     style: ElevatedButton.styleFrom(
                                                       backgroundColor: const Color(0xFF375534),
-                                                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                                      padding: const EdgeInsets.symmetric(
+                                                          horizontal: 32, vertical: 12),
                                                       shape: RoundedRectangleBorder(
                                                         borderRadius: BorderRadius.circular(12),
                                                       ),
@@ -761,7 +754,6 @@ class _RentCarPageState extends State<RentCarPage> {
                             ),
                             ElevatedButton(
                               onPressed: () async {
-                                // Pobierz współrzędne miasta, jeśli podano
                                 LatLng? cityCoordinates;
                                 if (cityController.text.isNotEmpty) {
                                   try {
@@ -839,7 +831,12 @@ class _RentCarPageState extends State<RentCarPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: const CustomAppBar(title: "Wypożycz auto"),
+      appBar: CustomAppBar(
+        title: "Wypożycz auto",
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           _setMapStyle();

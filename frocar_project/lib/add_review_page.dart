@@ -70,7 +70,12 @@ class _AddReviewPageState extends State<AddReviewPage> {
     const Color themeColor = Color(0xFF375534);
 
     return Scaffold(
-      appBar: const CustomAppBar(title: "Dodaj opinię"),
+      appBar: CustomAppBar(
+        title: "Dodaj opinię",
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(

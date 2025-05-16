@@ -41,7 +41,7 @@ class CarListingDetailPage extends StatelessWidget {
         return 'Nie znaleziono adresu';
       }
     } else {
-      throw Exception('Błąd podczas pobierania adresu: ${response.statusCode}');
+      throw Exception('Błąd: ${response.statusCode}');
     }
   }
 
@@ -71,7 +71,12 @@ class CarListingDetailPage extends StatelessWidget {
     const Color themeColor = Color(0xFF375534);
 
     return Scaffold(
-      appBar: const CustomAppBar(title: "Szczegóły pojazdu"),
+      appBar: CustomAppBar(
+        title: "Szczegóły pojazdu",
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: FutureBuilder<int?>(
         future: getCurrentUserId(),
         builder: (context, userSnapshot) {
@@ -222,7 +227,7 @@ class CarListingDetailPage extends StatelessWidget {
                                 return const Center(child: CircularProgressIndicator());
                               } else if (snapshot.hasError) {
                                 return Text(
-                                  'Błąd: ${snapshot.error}',
+                                  'Błąd: ${snapshot.error.toString().replaceFirst('Exception: ', '')}',
                                   style: const TextStyle(color: Colors.red),
                                 );
                               } else if (snapshot.hasData) {
@@ -268,9 +273,9 @@ class CarListingDetailPage extends StatelessWidget {
                               if (snapshot.connectionState == ConnectionState.waiting) {
                                 return const Center(child: CircularProgressIndicator());
                               } else if (snapshot.hasError) {
-                                return const Text(
-                                  'Błąd podczas pobierania recenzji',
-                                  style: TextStyle(color: Colors.red),
+                                return Text(
+                                  'Błąd: ${snapshot.error.toString().replaceFirst('Exception: ', '')}',
+                                  style: const TextStyle(color: Colors.red),
                                 );
                               } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
                                 final reviews = snapshot.data!;

@@ -41,14 +41,12 @@ class _ProfilePageState extends State<ProfilePage> {
       });
       try {
         await ApiService().changeUsername(usernameController.text);
-        // Po zmianie nazwy użytkownika użytkownik zostanie wylogowany w ApiService
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Nazwa użytkownika została zmieniona. Zaloguj się ponownie.'),
             backgroundColor: Colors.green,
           ),
         );
-        // Przekierowanie na stronę logowania
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -57,7 +55,7 @@ class _ProfilePageState extends State<ProfilePage> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Błąd podczas zmiany nazwy użytkownika: $e'),
+            content: Text('Błąd: ${e.toString().replaceFirst('Exception: ', '')}'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -81,7 +79,12 @@ class _ProfilePageState extends State<ProfilePage> {
     final isDarkMode = themeProvider.isDarkMode;
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'Profil'),
+      appBar: CustomAppBar(
+        title: 'Profil',
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(

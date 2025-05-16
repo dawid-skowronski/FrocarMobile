@@ -10,7 +10,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class CarListingPage extends StatefulWidget {
-  final CarListing? listing; // Opcjonalny parametr dla edycji
+  final CarListing? listing;
 
   const CarListingPage({super.key, this.listing});
 
@@ -63,7 +63,6 @@ class _CarListingPageState extends State<CarListingPage> {
   @override
   void initState() {
     super.initState();
-    // Jeśli przekazano listing, wstępnie wypełnij formularz
     if (widget.listing != null) {
       brandController.text = widget.listing!.brand;
       engineCapacityController.text = widget.listing!.engineCapacity.toString();
@@ -74,7 +73,7 @@ class _CarListingPageState extends State<CarListingPage> {
       features = List.from(widget.listing!.features);
       latitude = widget.listing!.latitude;
       longitude = widget.listing!.longitude;
-      _reverseGeocode(latitude!, longitude!); // Pobierz adres
+      _reverseGeocode(latitude!, longitude!);
     }
   }
 
@@ -127,12 +126,12 @@ class _CarListingPageState extends State<CarListingPage> {
           });
         }
       } else {
-        throw Exception('Błąd podczas odwrotnego geokodowania: ${response.statusCode}');
+        throw Exception('Błąd: ${response.statusCode}');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Błąd podczas pobierania adresu: $e'),
+          content: Text('Błąd: ${e.toString().replaceFirst('Exception: ', '')}'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -174,10 +173,9 @@ class _CarListingPageState extends State<CarListingPage> {
           isAvailable: widget.listing?.isAvailable ?? true,
           isApproved: widget.listing?.isApproved ?? false,
           rentalPricePerDay: double.parse(rentalPriceController.text),
-          averageRating: widget.listing?.averageRating ?? 0.0, // Dodaj to
+          averageRating: widget.listing?.averageRating ?? 0.0,
         );
         if (widget.listing == null) {
-          // Dodawanie nowego ogłoszenia
           await ApiService().createCarListing(carListing);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -186,7 +184,6 @@ class _CarListingPageState extends State<CarListingPage> {
             ),
           );
         } else {
-          // Edycja istniejącego ogłoszenia
           await ApiService().updateCarListing(carListing);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -199,7 +196,7 @@ class _CarListingPageState extends State<CarListingPage> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Błąd podczas zapisywania ogłoszenia: $e'),
+            content: Text('Błąd: ${e.toString().replaceFirst('Exception: ', '')}'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -251,7 +248,12 @@ class _CarListingPageState extends State<CarListingPage> {
     final isDarkMode = themeProvider.isDarkMode;
 
     return Scaffold(
-      appBar: CustomAppBar(title: widget.listing == null ? "Dodaj ogłoszenie" : "Edytuj ogłoszenie"),
+      appBar: CustomAppBar(
+        title: widget.listing == null ? "Dodaj ogłoszenie" : "Edytuj ogłoszenie",
+        onNotificationPressed: () {
+          Navigator.pushNamed(context, '/notifications');
+        },
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -291,8 +293,7 @@ class _CarListingPageState extends State<CarListingPage> {
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
                     borderRadius: BorderRadius.circular(12),
-                    border:
-                    Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+                    border: Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -331,8 +332,7 @@ class _CarListingPageState extends State<CarListingPage> {
                   decoration: BoxDecoration(
                     color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
                     borderRadius: BorderRadius.circular(12),
-                    border:
-                    Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+                    border: Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -375,8 +375,7 @@ class _CarListingPageState extends State<CarListingPage> {
                     child: TextField(
                       controller: featureController,
                       decoration: _inputDecoration('Np. Klimatyzacja'),
-                      style:
-                      TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+                      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -407,8 +406,7 @@ class _CarListingPageState extends State<CarListingPage> {
                     label: Text(feature,
                         style: TextStyle(
                             color: isDarkMode ? Colors.white : Colors.black)),
-                    backgroundColor:
-                    isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
+                    backgroundColor: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
                     deleteIcon: Icon(Icons.close,
                         color: isDarkMode ? Colors.white : Colors.black),
                     onDeleted: () {
