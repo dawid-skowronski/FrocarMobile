@@ -20,10 +20,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'notifications_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:test_project/models/car_listing.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-
-// Klucz do nawigacji globalnej
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -33,16 +34,13 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await dotenv.load(fileName: ".env");
-
   await Firebase.initializeApp();
 
   const AndroidInitializationSettings initializationSettingsAndroid =
   AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
+  const InitializationSettings initializationSettings =
+  InitializationSettings(android: initializationSettingsAndroid);
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -52,7 +50,8 @@ Future<void> main() async {
     importance: Importance.max,
   );
   await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      .resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
 
   FirebaseMessaging messaging = FirebaseMessaging.instance;
@@ -68,16 +67,53 @@ Future<void> main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  final themeProvider = ThemeProvider();
+  try {
+    await themeProvider.loadTheme();
+  } catch (e) {
+    print('Nie udało się wczytać ustawień motywu. Używam domyślnych ustawień.');
+  }
+
+  await _syncPendingListingsAtStart();
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider(create: (context) => NotificationProvider()),
         Provider<ApiService>(create: (context) => ApiService()),
+        Provider<FlutterSecureStorage>.value(value: const FlutterSecureStorage()),
       ],
       child: const MyApp(),
     ),
   );
+}
+
+Future<void> _syncPendingListingsAtStart() async {
+  final prefs = await SharedPreferences.getInstance();
+  List<String> pendingListings = prefs.getStringList('pending_listings') ?? [];
+
+  if (pendingListings.isEmpty) return;
+
+  final apiService = ApiService();
+  final connectivityResult = await Connectivity().checkConnectivity();
+  if (connectivityResult == ConnectivityResult.none) {
+    print('Brak internetu – synchronizacja danych później.');
+    return;
+  }
+
+  for (String listingJson in List.from(pendingListings)) {
+    try {
+      final carListing = CarListing.fromJson(jsonDecode(listingJson));
+      await apiService.createCarListing(carListing);
+      pendingListings.remove(listingJson);
+      await prefs.setStringList('pending_listings', pendingListings);
+      print('Zsynchronizowano ogłoszenie: ${carListing.brand}');
+    } catch (e) {
+      print('Nie udało się zsynchronizować danych. Spróbuję później.');
+      continue;
+    }
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -88,21 +124,19 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final _storage = const FlutterSecureStorage();
   Timer? _notificationPollingTimer;
   Set<int> _seenNotificationIds = {};
   bool _isCheckingNotifications = false;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
+    _notificationPollingTimer =
+        Timer.periodic(const Duration(seconds: 3), (timer) {
+          _checkForNewNotifications();
+        });
 
-    // Inicjalizacja cyklicznego sprawdzania powiadomień
-    _notificationPollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _checkForNewNotifications();
-    });
-
-    // Globalna obsługa powiadomień na pierwszym planie
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Powiadomienie na pierwszym planie: ${message.messageId}');
       if (message.notification != null) {
@@ -119,27 +153,38 @@ class _MyAppState extends State<MyApp> {
             ),
           ),
         );
-        Provider.of<NotificationProvider>(context, listen: false).incrementNotificationCount();
+        Provider.of<NotificationProvider>(context, listen: false)
+            .incrementNotificationCount();
       }
     });
 
-    // Globalna obsługa kliknięcia powiadomienia
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print('Powiadomienie kliknięte: ${message.messageId}');
       navigatorKey.currentState?.pushNamed('/notifications');
-      Provider.of<NotificationProvider>(context, listen: false).resetNotificationCount();
+      Provider.of<NotificationProvider>(context, listen: false)
+          .resetNotificationCount();
+    });
+
+    _connectivitySubscription = Connectivity()
+        .onConnectivityChanged
+        .listen((ConnectivityResult result) {
+      if (result != ConnectivityResult.none) {
+        print('Internet przywrócony – synchronizuję dane.');
+        _syncPendingListingsAtStart();
+      }
     });
   }
 
   @override
   void dispose() {
     _notificationPollingTimer?.cancel();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 
   Future<void> _checkForNewNotifications() async {
     if (_isCheckingNotifications) {
-      print('Poprzednie sprawdzanie powiadomień wciąż trwa - pomijam.');
+      print('Sprawdzanie powiadomień wciąż trwa – pomijam.');
       return;
     }
 
@@ -147,7 +192,6 @@ class _MyAppState extends State<MyApp> {
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
       final notifications = await apiService.fetchAccountNotifications();
-
       final newCount = notifications.length;
       print('Liczba nowych powiadomień: $newCount');
 
@@ -157,7 +201,8 @@ class _MyAppState extends State<MyApp> {
         if (!_seenNotificationIds.contains(notificationId)) {
           hasNewNotifications = true;
           String title = 'Nowe powiadomienie';
-          final message = notification['message']?.toString() ?? 'Masz nowe powiadomienie w aplikacji.';
+          final message = notification['message']?.toString() ??
+              'Masz nowe powiadomienie w aplikacji.';
 
           if (message.contains('wypożyczenie') && message.contains('zakończone')) {
             title = 'Wypożyczenie zakończone';
@@ -165,7 +210,7 @@ class _MyAppState extends State<MyApp> {
             title = 'Ogłoszenie zaakceptowane';
           }
 
-          print('Wyświetlam powiadomienie push: Tytuł: $title, Treść: $message');
+          print('Wyświetlam powiadomienie: Tytuł: $title, Treść: $message');
           await flutterLocalNotificationsPlugin.show(
             notificationId,
             title,
@@ -179,19 +224,19 @@ class _MyAppState extends State<MyApp> {
               ),
             ),
           );
-          print('Powiadomienie push wyświetlone.');
-
+          print('Powiadomienie wyświetlone.');
           _seenNotificationIds.add(notificationId);
         }
       }
 
       if (!hasNewNotifications) {
-        print('Brak nowych powiadomień do wyświetlenia jako push.');
+        print('Brak nowych powiadomień.');
       }
 
-      Provider.of<NotificationProvider>(context, listen: false).setNotificationCount(newCount);
+      Provider.of<NotificationProvider>(context, listen: false)
+          .setNotificationCount(newCount);
     } catch (e) {
-      print('Błąd podczas sprawdzania powiadomień: $e');
+      print('Nie udało się pobrać powiadomień. Spróbuję ponownie później.');
     } finally {
       _isCheckingNotifications = false;
     }
@@ -203,7 +248,7 @@ class _MyAppState extends State<MyApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      navigatorKey: navigatorKey, // Ustawiamy globalny klucz nawigacji
+      navigatorKey: navigatorKey,
       themeMode: themeProvider.themeMode,
       theme: ThemeData(
         brightness: Brightness.light,
@@ -241,7 +286,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String? _username = '';
   double _dragOffset = 0.0;
-  final _storage = const FlutterSecureStorage();
 
   @override
   void initState() {
@@ -250,6 +294,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _getUsername() async {
+    final _storage = Provider.of<FlutterSecureStorage>(context, listen: false);
     final username = await _storage.read(key: 'username');
     setState(() {
       _username = username ?? '';
@@ -384,7 +429,8 @@ class _HomePageState extends State<HomePage> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 15, horizontal: 30),
                           ),
                           child: const Text(
                             'Profil',
@@ -418,7 +464,8 @@ class _HomePageState extends State<HomePage> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 15, horizontal: 30),
                             elevation: 5,
                           ),
                           child: Text(
@@ -438,7 +485,8 @@ class _HomePageState extends State<HomePage> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 15, horizontal: 30),
                             elevation: 5,
                           ),
                           child: Text(

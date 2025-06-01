@@ -6,8 +6,10 @@ class NotificationProvider with ChangeNotifier {
   int get notificationCount => _notificationCount;
 
   void setNotificationCount(int count) {
-    _notificationCount = count;
-    notifyListeners();
+    if (_notificationCount != count) {
+      _notificationCount = count;
+      notifyListeners();
+    }
   }
 
   void incrementNotificationCount() {
@@ -16,7 +18,9 @@ class NotificationProvider with ChangeNotifier {
   }
 
   void resetNotificationCount() {
-    _notificationCount = 0;
-    notifyListeners();
+    if (_notificationCount != 0) {
+      _notificationCount = 0;
+      notifyListeners();
+    }
   }
 }

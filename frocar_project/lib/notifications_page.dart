@@ -22,9 +22,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void initState() {
     super.initState();
     fetchNotifications();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      fetchNotifications();
-    });
+    _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) => fetchNotifications());
   }
 
   @override
@@ -34,18 +32,22 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Future<void> fetchNotifications() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = '';
+    });
+
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
       final data = await apiService.fetchAccountNotifications();
       setState(() {
         notifications = data;
         isLoading = false;
-        errorMessage = '';
       });
       Provider.of<NotificationProvider>(context, listen: false).setNotificationCount(notifications.length);
     } catch (e) {
       setState(() {
-        errorMessage = 'Błąd: ${e.toString().replaceFirst('Exception: ', '')}';
+        errorMessage = _mapErrorMessage(e.toString());
         isLoading = false;
       });
       Provider.of<NotificationProvider>(context, listen: false).setNotificationCount(0);
@@ -57,20 +59,31 @@ class _NotificationsPageState extends State<NotificationsPage> {
       final apiService = Provider.of<ApiService>(context, listen: false);
       await apiService.markAccountNotificationAsRead(notificationId);
       setState(() {
-        notifications.removeWhere((notification) => notification['notificationId'] == notificationId);
-        errorMessage = '';
+        notifications.removeWhere((n) => n['notificationId'] == notificationId);
       });
       Provider.of<NotificationProvider>(context, listen: false).setNotificationCount(notifications.length);
     } catch (e) {
+      final message = _mapErrorMessage(e.toString());
       setState(() {
-        errorMessage = 'Błąd: ${e.toString().replaceFirst('Exception: ', '')}';
+        errorMessage = message;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Błąd: ${e.toString().replaceFirst('Exception: ', '')}'),
+          content: Text(message),
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  String _mapErrorMessage(String raw) {
+    final message = raw.replaceFirst('Exception: ', '');
+    if (message.contains('timeout')) {
+      return 'Nie udało się połączyć z serwerem. Sprawdź swoje połączenie internetowe.';
+    } else if (message.contains('401')) {
+      return 'Dostęp zabroniony. Zaloguj się ponownie.';
+    } else {
+      return 'Wystąpił błąd podczas ładowania powiadomień.';
     }
   }
 
@@ -86,9 +99,23 @@ class _NotificationsPageState extends State<NotificationsPage> {
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
             : errorMessage.isNotEmpty
-            ? Center(child: Text(errorMessage, style: const TextStyle(color: Colors.red)))
+            ? Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              errorMessage,
+              style: const TextStyle(color: Colors.red, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        )
             : notifications.isEmpty
-            ? const Center(child: Text('Brak nowych powiadomień.', style: TextStyle(fontSize: 16)))
+            ? const Center(
+          child: Text(
+            'Brak nowych powiadomień.',
+            style: TextStyle(fontSize: 16),
+          ),
+        )
             : ListView.builder(
           itemCount: notifications.length,
           itemBuilder: (context, index) {

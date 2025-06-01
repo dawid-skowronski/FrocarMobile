@@ -4,115 +4,51 @@ import 'package:provider/provider.dart';
 import 'package:test_project/providers/theme_provider.dart';
 import 'package:test_project/providers/notification_provider.dart';
 
-class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
+  final String? username;
   final VoidCallback? onNotificationPressed;
-  final _storage = const FlutterSecureStorage();
+  final VoidCallback? onLogoutPressed;
 
-  const CustomAppBar({
+  CustomAppBar({
     Key? key,
     required this.title,
+    this.username,
     this.onNotificationPressed,
+    this.onLogoutPressed,
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final notificationProvider = Provider.of<NotificationProvider>(context);
+  _CustomAppBarState createState() => _CustomAppBarState();
 
-    return AppBar(
-      backgroundColor: const Color(0xFF375534),
-      title: Text(
-        title,
-        style: const TextStyle(color: Colors.white),
-      ),
-      automaticallyImplyLeading: false,
-      actions: [
-        FutureBuilder<String?>(
-          future: _getUsername(),
-          builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-              return Row(
-                children: [
-                  Stack(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.notifications, color: Colors.white),
-                        onPressed: () {
-                          if (onNotificationPressed != null) {
-                            onNotificationPressed!();
-                          }
-                          notificationProvider.resetNotificationCount();
-                        },
-                      ),
-                      if (notificationProvider.notificationCount > 0)
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              '${notificationProvider.notificationCount}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                      color: Colors.white,
-                    ),
-                    onPressed: () => themeProvider.toggleTheme(),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.exit_to_app,
-                      color: Colors.white,
-                    ),
-                    onPressed: () => _logout(context),
-                  ),
-                ],
-              );
-            }
-            return Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                    color: Colors.white,
-                  ),
-                  onPressed: () => themeProvider.toggleTheme(),
-                ),
-              ],
-            );
-          },
-        ),
-      ],
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(20),
-        ),
-      ),
-    );
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+
+class _CustomAppBarState extends State<CustomAppBar> {
+  String? _username;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final username = widget.username ?? await _getUsername();
+    if (_mounted) {
+      setState(() {
+        _username = username;
+      });
+    }
   }
 
   Future<String?> _getUsername() async {
-    return await _storage.read(key: 'username');
+    final storage = Provider.of<FlutterSecureStorage>(context, listen: false);
+    return await storage.read(key: 'username');
   }
+
+  bool get _mounted => mounted;
 
   void _logout(BuildContext context) async {
     bool? shouldLogout = await showDialog(
@@ -122,11 +58,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         content: const Text("Czy na pewno chcesz się wylogować?"),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text("Nie"),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text("Tak"),
           ),
         ],
@@ -134,8 +70,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
 
     if (shouldLogout == true) {
-      await _storage.delete(key: 'token');
-      await _storage.delete(key: 'username');
+      final storage = Provider.of<FlutterSecureStorage>(context, listen: false);
+      await storage.delete(key: 'token');
+      await storage.delete(key: 'username');
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/',
@@ -145,5 +82,93 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    return AppBar(
+      backgroundColor: const Color(0xFF375534),
+      title: Text(
+        widget.title,
+        style: const TextStyle(color: Colors.white),
+      ),
+      automaticallyImplyLeading: false,
+      actions: [
+        if (_username != null && _username!.isNotEmpty)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Consumer<NotificationProvider>(
+                builder: (context, notificationProvider, _) => Stack(
+                  children: [
+                    IconButton(
+                      key: const Key('notification_button'),
+                      icon: const Icon(Icons.notifications, color: Colors.white),
+                      onPressed: () {
+                        widget.onNotificationPressed?.call();
+                        notificationProvider.resetNotificationCount();
+                      },
+                    ),
+                    if (notificationProvider.notificationCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            '${notificationProvider.notificationCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: const Key('theme_toggle'),
+                icon: Icon(
+                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                  color: Colors.white,
+                ),
+                onPressed: () => themeProvider.toggleTheme(),
+              ),
+              IconButton(
+                key: const Key('logout_button'),
+                icon: const Icon(Icons.exit_to_app, color: Colors.white),
+                onPressed: () {
+                  if (widget.onLogoutPressed != null) {
+                    widget.onLogoutPressed!();
+                  } else {
+                    _logout(context);
+                  }
+                },
+              ),
+            ],
+          )
+        else
+          IconButton(
+            key: const Key('theme_toggle'),
+            icon: Icon(
+              themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              color: Colors.white,
+            ),
+            onPressed: () => themeProvider.toggleTheme(),
+          ),
+      ],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+      ),
+    );
+  }
 }

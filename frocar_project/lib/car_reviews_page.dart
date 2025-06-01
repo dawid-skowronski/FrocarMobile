@@ -5,14 +5,17 @@ import '../widgets/custom_app_bar.dart';
 
 class CarReviewsPage extends StatelessWidget {
   final int listingId;
+  final ApiService apiService;
 
-  const CarReviewsPage({super.key, required this.listingId});
+  CarReviewsPage({
+    Key? key,
+    required this.listingId,
+    ApiService? apiService,
+  })  : apiService = apiService ?? ApiService(),
+        super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    const Color themeColor = Color(0xFF375534);
-    final ApiService apiService = ApiService();
-
     return Scaffold(
       appBar: CustomAppBar(
         title: "Recenzje pojazdu",
@@ -26,10 +29,11 @@ class CarReviewsPage extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(
+            return const Center(
               child: Text(
-                'Błąd: ${snapshot.error.toString().replaceFirst('Exception: ', '')}',
-                style: const TextStyle(fontSize: 16, color: Colors.red),
+                'Nie udało się załadować recenzji. Sprawdź połączenie z internetem lub spróbuj ponownie później.',
+                style: TextStyle(fontSize: 16, color: Colors.red),
+                textAlign: TextAlign.center,
               ),
             );
           } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
@@ -70,7 +74,9 @@ class CarReviewsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          review.comment ?? 'Brak komentarza',
+                          review.comment?.isNotEmpty == true
+                              ? review.comment!
+                              : 'Brak komentarza',
                           style: const TextStyle(fontSize: 14),
                         ),
                         const SizedBox(height: 4),
@@ -87,8 +93,9 @@ class CarReviewsPage extends StatelessWidget {
           } else {
             return const Center(
               child: Text(
-                'Brak recenzji dla tego pojazdu.',
+                'Ten pojazd nie posiada jeszcze żadnych recenzji.',
                 style: TextStyle(fontSize: 16, color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
             );
           }

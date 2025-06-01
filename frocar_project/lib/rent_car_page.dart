@@ -26,11 +26,12 @@ class _RentCarPageState extends State<RentCarPage> {
   GoogleMapController? _controller;
   final Set<Marker> _markers = {};
   List<CarListing> _carListings = [];
+  List<CarRental> _userRentals = [];
   static const LatLng _center = LatLng(52.2296756, 21.0122287);
   double _currentZoom = 11.0;
   static const double _zoomThreshold = 14.0;
   int? _currentUserId;
-  final _storage = const FlutterSecureStorage();
+  bool _isShowingInfoWindows = false;
 
   String? _filterBrand;
   int? _minSeats;
@@ -55,11 +56,13 @@ class _RentCarPageState extends State<RentCarPage> {
     super.initState();
     _loadCurrentUserId().then((_) {
       _loadCarListings();
+      _loadUserRentals();
     });
   }
 
   Future<void> _loadCurrentUserId() async {
-    final token = await _storage.read(key: 'token');
+    final storage = Provider.of<FlutterSecureStorage>(context, listen: false);
+    final token = await storage.read(key: 'token');
     if (token != null) {
       try {
         final parts = token.split('.');
@@ -72,6 +75,7 @@ class _RentCarPageState extends State<RentCarPage> {
         _currentUserId = int.parse(
             decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ?? '0');
       } catch (e) {
+        print('Błąd ładowania ID użytkownika: $e');
         _currentUserId = null;
       }
     } else {
@@ -125,6 +129,7 @@ class _RentCarPageState extends State<RentCarPage> {
 
           return matches;
         }).toList();
+        print('Załadowano ${_carListings.length} listingów');
         if (_carListings.isEmpty) {
           _showErrorDialog('Brak dostępnych aut spełniających kryteria');
         } else {
@@ -133,6 +138,19 @@ class _RentCarPageState extends State<RentCarPage> {
       });
     } catch (e) {
       _showErrorDialog('Brak dostępnych aut do wypożyczenia: ${e.toString().replaceFirst('Exception: ', '')}');
+    }
+  }
+
+  Future<void> _loadUserRentals() async {
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final rentals = await apiService.getUserCarRentals();
+      setState(() {
+        _userRentals = rentals;
+        print('Załadowano ${_userRentals.length} wypożyczeń');
+      });
+    } catch (e) {
+      print('Błąd ładowania wypożyczeń: $e');
     }
   }
 
@@ -181,26 +199,45 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  void _updateMarkers() {
+  void _updateMarkers() async {
+    final BitmapDescriptor carIcon = await BitmapDescriptor.asset(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/car_icon.png',
+    );
+
     _markers.clear();
-    _markers.addAll(_carListings.map((listing) => Marker(
-      markerId: MarkerId(listing.id.toString()),
-      position: LatLng(listing.latitude, listing.longitude),
-      infoWindow: InfoWindow(
-        title: listing.brand,
-      ),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CarListingDetailPage(listing: listing),
-          ),
-        );
-      },
-    )));
-    if (_currentZoom >= _zoomThreshold) {
-      _showAllInfoWindows();
+    for (var listing in _carListings) {
+      print('Dodaję marker dla ${listing.brand}, ID: ${listing.id}, współrzędne: (${listing.latitude}, ${listing.longitude})');
+
+      if (listing.latitude.isNaN || listing.longitude.isNaN) {
+        print('Błąd: Nieprawidłowe współrzędne dla markera ${listing.id}');
+        continue;
+      }
+
+      _markers.add(Marker(
+        markerId: MarkerId(listing.id.toString()),
+        position: LatLng(listing.latitude, listing.longitude),
+        icon: carIcon,
+        consumeTapEvents: true,
+        infoWindow: InfoWindow(
+          title: listing.brand.isNotEmpty ? listing.brand : 'Brak marki',
+          snippet: 'Cena: ${listing.rentalPricePerDay.toStringAsFixed(2)} PLN/dzień',
+        ),
+        onTap: () {
+          print('Przekierowuję do szczegółów listingu ${listing.id}');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CarListingDetailPage(listing: listing),
+            ),
+          );
+        },
+      ));
     }
+
+    setState(() {
+      print('Zaktualizowano markery, liczba markerów: ${_markers.length}');
+    });
   }
 
   Future<void> _setMapStyle() async {
@@ -213,7 +250,7 @@ class _RentCarPageState extends State<RentCarPage> {
 
     try {
       String style = await rootBundle.loadString(stylePath);
-      _controller?.setMapStyle(style);
+      _controller!.setMapStyle(style);
     } catch (e) {
       print('Błąd ładowania stylu mapy: $e');
     }
@@ -222,23 +259,44 @@ class _RentCarPageState extends State<RentCarPage> {
   void _onCameraMove(CameraPosition position) {
     setState(() {
       _currentZoom = position.zoom;
+      print('Zmiana zoomu: $_currentZoom');
     });
-    if (_currentZoom >= _zoomThreshold) {
+
+    bool shouldShowInfoWindows = _currentZoom >= _zoomThreshold;
+    if (shouldShowInfoWindows && !_isShowingInfoWindows) {
       _showAllInfoWindows();
-    } else {
+      _isShowingInfoWindows = true;
+    } else if (!shouldShowInfoWindows && _isShowingInfoWindows) {
       _hideAllInfoWindows();
+      _isShowingInfoWindows = false;
     }
   }
 
-  void _showAllInfoWindows() {
-    for (var marker in _markers) {
-      _controller?.showMarkerInfoWindow(marker.markerId);
-    }
+  Future<void> _showAllInfoWindows() async {
+    if (_controller == null) return;
+
+    final bounds = await _controller!.getVisibleRegion();
+    print('Widoczny obszar mapy: $bounds');
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      for (var marker in _markers) {
+        bool isVisible = bounds.contains(marker.position);
+        if (isVisible) {
+          _controller!.showMarkerInfoWindow(marker.markerId);
+          print('Pokazuję InfoWindow dla markera ${marker.markerId} na pozycji ${marker.position}');
+        } else {
+          _controller!.hideMarkerInfoWindow(marker.markerId);
+          print('Ukrywam InfoWindow dla markera ${marker.markerId}, bo jest poza widocznym obszarem');
+        }
+      }
+    });
   }
 
   void _hideAllInfoWindows() {
+    if (_controller == null) return;
     for (var marker in _markers) {
-      _controller?.hideMarkerInfoWindow(marker.markerId);
+      _controller!.hideMarkerInfoWindow(marker.markerId);
+      print('Ukrywam InfoWindow dla markera ${marker.markerId}');
     }
   }
 
@@ -256,7 +314,6 @@ class _RentCarPageState extends State<RentCarPage> {
   }
 
   void _showRentedCarsBottomSheet() {
-    int? expandedIndex;
     bool showEndedRentals = false;
 
     showModalBottomSheet(
@@ -264,284 +321,221 @@ class _RentCarPageState extends State<RentCarPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return FutureBuilder<List<CarRental>>(
-              future: Provider.of<ApiService>(context, listen: false).getUserCarRentals(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
+            final filteredRentals = _userRentals.where((rental) {
+              print('Filtruję rental: ${rental.rentalStatus}, showEndedRentals: $showEndedRentals');
+              return showEndedRentals || rental.rentalStatus != 'Zakończone';
+            }).toList();
+
+            return Theme(
+              data: Theme.of(context).copyWith(
+                dividerColor: Colors.transparent,
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Icon(
-                          Icons.directions_car,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          snapshot.error.toString().replaceFirst('Exception: ', ''),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.directions_car,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
                         const Text(
-                          'Brak wypożyczeń',
+                          'Pokaż zakończone wypożyczenia',
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Switch(
+                          value: showEndedRentals,
+                          onChanged: (value) {
+                            setModalState(() {
+                              showEndedRentals = value;
+                            });
+                          },
+                          activeColor: const Color(0xFF375534),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: filteredRentals.isEmpty
+                        ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.directions_car,
+                            size: 48,
                             color: Colors.grey,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                } else {
-                  final filteredRentals = snapshot.data!.where((rental) {
-                    return showEndedRentals || rental.rentalStatus != 'Ended';
-                  }).toList();
-
-                  return Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                    ),
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Pokaż zakończone wypożyczenia',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Switch(
-                                value: showEndedRentals,
-                                onChanged: (value) {
-                                  setModalState(() {
-                                    showEndedRentals = value;
-                                  });
-                                },
-                                activeColor: const Color(0xFF375534),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: filteredRentals.isEmpty
-                              ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.directions_car,
-                                  size: 48,
-                                  color: Colors.grey,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  showEndedRentals
-                                      ? 'Brak zakończonych wypożyczeń'
-                                      : 'Brak aktualnie wypożyczonych aut',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
+                          const SizedBox(height: 16),
+                          Text(
+                            showEndedRentals
+                                ? 'Brak zakończonych wypożyczeń'
+                                : 'Brak aktualnie wypożyczonych aut',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
                             ),
-                          )
-                              : ListView.builder(
-                            itemCount: filteredRentals.length,
-                            itemBuilder: (context, index) {
-                              final rental = filteredRentals[index];
-                              return FutureBuilder<List<CarRentalReview>>(
-                                future: Provider.of<ApiService>(context, listen: false)
-                                    .getReviewsForListing(rental.carListingId),
-                                builder: (context, reviewSnapshot) {
-                                  bool canAddReview = false;
-                                  if (reviewSnapshot.hasData) {
-                                    final reviews = reviewSnapshot.data!;
-                                    canAddReview =
-                                    !reviews.any((review) => review.carRentalId == rental.carRentalId);
-                                  }
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                        : ListView.builder(
+                      itemCount: filteredRentals.length,
+                      itemBuilder: (context, index) {
+                        final rental = filteredRentals[index];
+                        return FutureBuilder<List<CarRentalReview>>(
+                          future: Provider.of<ApiService>(context, listen: false)
+                              .getReviewsForListing(rental.carListingId),
+                          builder: (context, reviewSnapshot) {
+                            bool canAddReview = false;
+                            if (reviewSnapshot.hasData) {
+                              final reviews = reviewSnapshot.data!;
+                              canAddReview = !reviews.any(
+                                      (review) => review.carRentalId == rental.carRentalId);
+                            }
 
-                                  return Card(
-                                    margin:
-                                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                                    elevation: 4,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 16.0, vertical: 8.0),
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ExpansionTile(
+                                key: Key(index.toString()),
+                                initiallyExpanded: false,
+                                leading: const Icon(
+                                  Icons.directions_car,
+                                  color: Color(0xFF375534),
+                                ),
+                                title: Text(
+                                  rental.carListing.brand,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Od: ${rental.rentalStartDate.toString().substring(0, 10)} Do: ${rental.rentalEndDate.toString().substring(0, 10)}',
+                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                ),
+                                trailing: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: rental.rentalStatus == 'Aktywne'
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.grey.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    rental.rentalStatus,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: rental.rentalStatus == 'Aktywne'
+                                          ? Colors.green
+                                          : Colors.grey[600],
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    child: ExpansionTile(
-                                      key: Key(index.toString()),
-                                      initiallyExpanded: expandedIndex == index,
-                                      onExpansionChanged: (bool expanded) {
-                                        setModalState(() {
-                                          if (expanded) {
-                                            expandedIndex = index;
-                                          } else {
-                                            expandedIndex = null;
-                                          }
-                                        });
-                                      },
-                                      leading: const Icon(
-                                        Icons.directions_car,
-                                        color: Color(0xFF375534),
-                                      ),
-                                      title: Text(
-                                        rental.carListing.brand,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        'Od: ${rental.rentalStartDate.toString().substring(0, 10)} Do: ${rental.rentalEndDate.toString().substring(0, 10)}',
-                                        style: const TextStyle(fontSize: 14, color: Colors.grey),
-                                      ),
-                                      trailing: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: rental.rentalStatus == 'Active'
-                                              ? Colors.green.withOpacity(0.1)
-                                              : Colors.grey.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          rental.rentalStatus,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: rental.rentalStatus == 'Active'
-                                                ? Colors.green
-                                                : Colors.grey[600],
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
+                                  ),
+                                ),
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16.0, vertical: 8.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 16.0, vertical: 8.0),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.monetization_on,
-                                                    color: Color(0xFF375534),
-                                                    size: 20,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Text(
-                                                      'Cena wypożyczenia: ${_calculateTotalPrice(rental).toStringAsFixed(2)} PLN',
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 12),
-                                              Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.timer,
-                                                    color: Color(0xFF375534),
-                                                    size: 20,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Text(
-                                                      'Dni do końca wypożyczenia: ${_calculateDaysUntilEnd(rental)}',
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              if (rental.rentalStatus == 'Ended' && canAddReview) ...[
-                                                const SizedBox(height: 16),
-                                                Center(
-                                                  child: ElevatedButton(
-                                                    onPressed: () {
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder: (context) => AddReviewPage(
-                                                            carRentalId: rental.carRentalId,
-                                                            carListingId: rental.carListingId,
-                                                          ),
-                                                        ),
-                                                      ).then((_) {
-                                                        setModalState(() {});
-                                                      });
-                                                    },
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: const Color(0xFF375534),
-                                                      padding: const EdgeInsets.symmetric(
-                                                          horizontal: 32, vertical: 12),
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius: BorderRadius.circular(12),
-                                                      ),
-                                                    ),
-                                                    child: const Text(
-                                                      'Dodaj opinię',
-                                                      style: TextStyle(fontSize: 16, color: Colors.white),
-                                                    ),
-                                                  ),
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.monetization_on,
+                                              color: Color(0xFF375534),
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Cena wypożyczenia: ${_calculateTotalPrice(rental).toStringAsFixed(2)} PLN',
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey,
                                                 ),
-                                              ],
-                                            ],
-                                          ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.timer,
+                                              color: Color(0xFF375534),
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Dni do końca wypożyczenia: ${_calculateDaysUntilEnd(rental)}',
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (rental.rentalStatus == 'Zakończone' && canAddReview) ...[
+                                          const SizedBox(height: 16),
+                                          Center(
+                                            child: ElevatedButton(
+                                              onPressed: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => AddReviewPage(
+                                                      carRentalId: rental.carRentalId,
+                                                      carListingId: rental.carListingId,
+                                                    ),
+                                                  ),
+                                                ).then((_) {
+                                                  _loadUserRentals();
+                                                  setModalState(() {});
+                                                });
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF375534),
+                                                padding: const EdgeInsets.symmetric(
+                                                    horizontal: 32, vertical: 12),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'Dodaj opinię',
+                                                style: TextStyle(fontSize: 16, color: Colors.white),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
-                  );
-                }
-              },
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -842,6 +836,7 @@ class _RentCarPageState extends State<RentCarPage> {
           _setMapStyle();
           return GoogleMap(
             onMapCreated: (controller) {
+              print('Mapa utworzona, controller: $controller');
               _controller = controller;
               _setMapStyle();
             },

@@ -1,39 +1,49 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:test_project/services/api_service.dart';
-import 'package:test_project/models/car_listing.dart';
-import 'package:test_project/widgets/custom_app_bar.dart';
+import '../services/api_service.dart';
+import '../models/car_listing.dart';
+import '../widgets/custom_app_bar.dart';
 import 'car_listing_page.dart' as listingPage;
 import 'car_listing_detail_page.dart' as detailPage;
 
 class OfferCarPage extends StatefulWidget {
-  const OfferCarPage({super.key});
+  final ApiService apiService;
+
+  OfferCarPage({
+    Key? key,
+    ApiService? apiService,
+  })  : apiService = apiService ?? ApiService(),
+        super(key: key);
 
   @override
   _OfferCarPageState createState() => _OfferCarPageState();
 }
 
 class _OfferCarPageState extends State<OfferCarPage> {
-  final ApiService _apiService = ApiService();
   List<CarListing> _userListings = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadUserListings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserListings();
+    });
   }
 
   Future<void> _loadUserListings() async {
     try {
-      final listings = await _apiService.getUserCarListings();
+      final listings = await widget.apiService.getUserCarListings();
       setState(() {
         _userListings = listings;
         _isLoading = false;
       });
     } catch (e) {
+      final errorMsg = _mapErrorMessage(e.toString());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Błąd: ${e.toString().replaceFirst('Exception: ', '')}'),
+          content: Text(errorMsg),
           backgroundColor: Colors.red,
         ),
       );
@@ -41,6 +51,17 @@ class _OfferCarPageState extends State<OfferCarPage> {
         _userListings = [];
         _isLoading = false;
       });
+    }
+  }
+
+  String _mapErrorMessage(String raw) {
+    final message = raw.replaceFirst('Exception: ', '');
+    if (message.contains('timeout')) {
+      return 'Błąd połączenia z serwerem. Spróbuj ponownie później.';
+    } else if (message.contains('401')) {
+      return 'Nieautoryzowany dostęp. Zaloguj się ponownie.';
+    } else {
+      return 'Wystąpił problem podczas pobierania ogłoszeń.';
     }
   }
 
@@ -60,14 +81,12 @@ class _OfferCarPageState extends State<OfferCarPage> {
           children: [
             GestureDetector(
               onTap: () {
-                Navigator.push(
+                Navigator.push<bool>(
                   context,
-                  MaterialPageRoute(builder: (context) => const listingPage.CarListingPage()),
-                ).then((result) {
-                  if (result == true) {
-                    _loadUserListings();
-                  }
-                });
+                  MaterialPageRoute(
+                    builder: (_) => const listingPage.CarListingPage(),
+                  ),
+                ).then((_) => _loadUserListings());
               },
               child: Card(
                 color: const Color(0xFF375534),
@@ -95,7 +114,9 @@ class _OfferCarPageState extends State<OfferCarPage> {
             ),
             const SizedBox(height: 8),
             _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Expanded(
+              child: Center(child: CircularProgressIndicator()),
+            )
                 : Expanded(
               child: _userListings.isEmpty
                   ? const Center(
@@ -158,7 +179,7 @@ class _OfferCarPageState extends State<OfferCarPage> {
                                 color: Colors.red.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text(
+                              child: const Text(
                                 'Wypożyczone',
                                 style: TextStyle(
                                   fontSize: 14,
@@ -173,7 +194,9 @@ class _OfferCarPageState extends State<OfferCarPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => detailPage.CarListingDetailPage(listing: listing),
+                            builder: (_) => detailPage.CarListingDetailPage(
+                              listing: listing,
+                            ),
                           ),
                         );
                       },

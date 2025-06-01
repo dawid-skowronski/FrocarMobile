@@ -87,4 +87,39 @@ class CarListing {
       averageRating: 0.0,
     );
   }
+
+  // 🔁 Metoda copyWith
+  CarListing copyWith({
+    int? id,
+    String? brand,
+    double? engineCapacity,
+    String? fuelType,
+    int? seats,
+    String? carType,
+    List<String>? features,
+    double? latitude,
+    double? longitude,
+    int? userId,
+    bool? isAvailable,
+    double? rentalPricePerDay,
+    bool? isApproved,
+    double? averageRating,
+  }) {
+    return CarListing(
+      id: id ?? this.id,
+      brand: brand ?? this.brand,
+      engineCapacity: engineCapacity ?? this.engineCapacity,
+      fuelType: fuelType ?? this.fuelType,
+      seats: seats ?? this.seats,
+      carType: carType ?? this.carType,
+      features: features ?? this.features,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      userId: userId ?? this.userId,
+      isAvailable: isAvailable ?? this.isAvailable,
+      rentalPricePerDay: rentalPricePerDay ?? this.rentalPricePerDay,
+      isApproved: isApproved ?? this.isApproved,
+      averageRating: averageRating ?? this.averageRating,
+    );
+  }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:test_project/providers/theme_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:test_project/providers/theme_provider.dart';
 
 class SelectedLocation {
   final double latitude;
@@ -13,7 +13,9 @@ class SelectedLocation {
 }
 
 class MapPicker extends StatefulWidget {
-  const MapPicker({super.key});
+  final http.Client? httpClient;
+
+  const MapPicker({Key? key, this.httpClient}) : super(key: key);
 
   @override
   _MapPickerState createState() => _MapPickerState();
@@ -24,13 +26,20 @@ class _MapPickerState extends State<MapPicker> {
   LatLng? _selectedLocation;
   final addressController = TextEditingController();
   bool _isSearching = false;
-  String? _mapStyle; // Przechowuje styl mapy
+  String? _mapStyle;
+  late http.Client client;
 
-  static const LatLng _initialPosition = LatLng(52.2297, 21.0122); // Domyślna pozycja (Warszawa)
+  static const LatLng _initialPosition = LatLng(52.2297, 21.0122);
 
-  void _onMapCreated(GoogleMapController controller) {
+  @override
+  void initState() {
+    super.initState();
+    client = widget.httpClient ?? http.Client();
+  }
+
+  void _onMapCreated(GoogleMapController controller) async {
     _controller = controller;
-    _loadMapStyle();
+    await _loadMapStyle();
   }
 
   void _onMapTapped(LatLng position) {
@@ -58,10 +67,10 @@ class _MapPickerState extends State<MapPicker> {
     try {
       final url = Uri.parse(
           'https://nominatim.openstreetmap.org/search?q=${Uri.encodeQueryComponent(address)}&format=json&limit=1');
-      final response = await http.get(
+      final response = await client.get(
         url,
         headers: {
-          'User-Agent': 'FrogCarApp/1.0 (twoj.email@example.com)', // Zmień na unikalny User-Agent
+          'User-Agent': 'FrogCarApp/1.0 (twoj.email@example.com)',
         },
       );
 
@@ -111,10 +120,8 @@ class _MapPickerState extends State<MapPicker> {
       setState(() {
         _mapStyle = style;
       });
-      _controller?.setMapStyle(style); // Ustawienie stylu po załadowaniu
-    } catch (e) {
-      print('Błąd ładowania stylu mapy: $e');
-    }
+      _controller?.setMapStyle(style);
+    } catch (_) {}
   }
 
   void _confirmSelection() {
@@ -144,7 +151,7 @@ class _MapPickerState extends State<MapPicker> {
         actions: [
           IconButton(
             icon: const Icon(Icons.check),
-            onPressed: _selectedLocation != null ? _confirmSelection : null,
+            onPressed: _confirmSelection,
           ),
         ],
       ),
@@ -184,7 +191,6 @@ class _MapPickerState extends State<MapPicker> {
                 ),
               }
                   : {},
-              style: _mapStyle, // Użycie stylu mapy
             ),
           ),
         ],

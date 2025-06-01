@@ -4,7 +4,14 @@ import 'package:test_project/services/api_service.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool skipNavigationOnLogin;
+  final String? testUsername;
+
+  const LoginScreen({
+    super.key,
+    this.skipNavigationOnLogin = false,
+    this.testUsername,
+  });
 
   @override
   _LoginScreenState createState() => _LoginScreenState();
@@ -18,6 +25,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   Future<void> _login() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+
+    if (username.isEmpty || password.isEmpty) {
+      setState(() {
+        _message = 'Proszę uzupełnić nazwę użytkownika i hasło.';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _message = '';
@@ -25,19 +42,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
-      await apiService.login(
-        _usernameController.text,
-        _passwordController.text,
-      );
+      final response = await apiService.login(username, password);
 
       setState(() {
-        _message = 'Zalogowano pomyślnie';
+        _message = 'Zalogowano pomyślnie.';
       });
 
-      Navigator.pushReplacementNamed(context, '/');
+      if (!widget.skipNavigationOnLogin) {
+        Navigator.pushReplacementNamed(context, '/');
+      }
     } catch (e) {
+      final errorMsg = e.toString().replaceFirst('Exception: ', '');
       setState(() {
-        _message = e.toString().replaceFirst('Exception: ', '');
+        _message = _mapErrorMessage(errorMsg);
       });
     } finally {
       setState(() {
@@ -46,11 +63,22 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  String _mapErrorMessage(String rawMessage) {
+    if (rawMessage.contains('401')) {
+      return 'Nieprawidłowa nazwa użytkownika lub hasło.';
+    } else if (rawMessage.contains('timeout')) {
+      return 'Połączenie z serwerem nie powiodło się. Spróbuj ponownie.';
+    } else {
+      return 'Wystąpił błąd podczas logowania. Spróbuj ponownie później.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar(
         title: "Logowanie",
+        username: widget.testUsername,
         onNotificationPressed: () {
           Navigator.pushNamed(context, '/notifications');
         },
@@ -62,15 +90,22 @@ class _LoginScreenState extends State<LoginScreen> {
           children: <Widget>[
             TextField(
               controller: _usernameController,
-              decoration: const InputDecoration(labelText: 'Nazwa użytkownika'),
+              decoration: const InputDecoration(
+                labelText: 'Nazwa użytkownika',
+                border: OutlineInputBorder(),
+              ),
             ),
+            const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
               obscureText: _obscurePassword,
               decoration: InputDecoration(
                 labelText: 'Hasło',
+                border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  ),
                   onPressed: () {
                     setState(() {
                       _obscurePassword = !_obscurePassword;
@@ -79,27 +114,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _login,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF375534),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _login,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF375534),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Zaloguj się', style: TextStyle(fontSize: 16)),
               ),
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Zaloguj się'),
             ),
             const SizedBox(height: 20),
-            Text(
-              _message,
-              style: TextStyle(
-                color: _message.contains('pomyślnie') ? Colors.green : Colors.red,
+            if (_message.isNotEmpty)
+              Text(
+                _message,
+                style: TextStyle(
+                  color: _message.contains('pomyślnie') ? Colors.green : Colors.red,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
           ],
         ),
       ),

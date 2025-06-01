@@ -1,4 +1,3 @@
-// lib/widgets/loading_screen.dart
 import 'package:flutter/material.dart';
 import 'dart:async';
 
@@ -27,7 +26,6 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
       vsync: this,
     );
 
-    // Animacja fade-in
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
@@ -39,7 +37,6 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
         _route = widget.nextRoute ?? (ModalRoute.of(context)?.settings.arguments as String?) ?? '/';
       });
 
-      // Czas po którym przekieruje
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
           Navigator.pushReplacementNamed(context, _route);

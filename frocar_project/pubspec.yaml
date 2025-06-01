@@ -24,10 +24,11 @@ dependencies:
 
   # Pakiet shared_preferences do przechowywania danych lokalnych (np. tokenu)
   shared_preferences: ^2.0.15
+  connectivity_plus: ^5.0.2
   flutter_launcher_icons: ^0.14.3
   google_fonts: ^4.0.4
   simple_gradient_text: ^1.3.0
-  google_maps_flutter: ^2.2.1
+  google_maps_flutter: ^2.9.0
   geocoding: ^3.0.0
   geolocator: ^13.0.2
   flutter_dotenv: ^5.0.2
@@ -37,10 +38,18 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_messaging: ^15.1.3
   flutter_local_notifications: ^17.2.2
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  test: any
+  integration_test:
+    sdk: flutter
+
+  mockito: ^5.4.4
+  mocktail: ^1.0.3
+  build_runner: ^2.4.14
 
   flutter_lints: ^5.0.0
 
@@ -59,6 +68,6 @@ flutter:
   assets:
   - .env
   - assets/frocar_logo.png
-  - assets/car.png
+  - assets/car_icon.png
   - assets/map_styles/light_mode.json
   - assets/map_styles/dark_mode.json

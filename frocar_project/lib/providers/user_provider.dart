@@ -2,22 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
+abstract class JwtDecoderInterface {
+  Map<String, dynamic> decode(String token);
+}
+
+class JwtDecoderWrapper implements JwtDecoderInterface {
+  @override
+  Map<String, dynamic> decode(String token) => JwtDecoder.decode(token);
+}
+
 class UserProvider with ChangeNotifier {
   int? _userId;
-  final _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
+  final JwtDecoderInterface _jwtDecoder;
 
   int? get userId => _userId;
 
-  UserProvider() {
+  UserProvider({
+    FlutterSecureStorage? storage,
+    JwtDecoderInterface? jwtDecoder,
+  })  : _storage = storage ?? const FlutterSecureStorage(),
+        _jwtDecoder = jwtDecoder ?? JwtDecoderWrapper() {
     _loadUserId();
   }
 
   Future<void> _loadUserId() async {
-    // Odczyt tokenu z FlutterSecureStorage
     final token = await _storage.read(key: 'token');
     if (token != null) {
       try {
-        final decodedToken = JwtDecoder.decode(token);
+        final decodedToken = _jwtDecoder.decode(token);
         _userId = int.parse(decodedToken['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ?? '0');
         notifyListeners();
       } catch (e) {
@@ -32,7 +45,6 @@ class UserProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
-    // Usunięcie tokenu z FlutterSecureStorage
     await _storage.delete(key: 'token');
     _userId = null;
     notifyListeners();

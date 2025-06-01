@@ -5,11 +5,13 @@ import 'package:test_project/widgets/custom_app_bar.dart';
 class AddReviewPage extends StatefulWidget {
   final int carRentalId;
   final int carListingId;
+  final ApiService? apiService;
 
   const AddReviewPage({
     super.key,
     required this.carRentalId,
     required this.carListingId,
+    this.apiService,
   });
 
   @override
@@ -21,7 +23,13 @@ class _AddReviewPageState extends State<AddReviewPage> {
   int rating = 0;
   final commentController = TextEditingController();
   bool isLoading = false;
-  final ApiService _apiService = ApiService();
+  late final ApiService _apiService;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = widget.apiService ?? ApiService();
+  }
 
   @override
   void dispose() {
@@ -30,23 +38,40 @@ class _AddReviewPageState extends State<AddReviewPage> {
   }
 
   Future<void> _submitReview() async {
-    if (_formKey.currentState!.validate() && rating > 0) {
+    if (rating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Proszę wybrać ocenę, zanim dodasz opinię.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_formKey.currentState!.validate()) {
       setState(() {
         isLoading = true;
       });
+
       try {
-        await _apiService.addReview(widget.carRentalId, rating, commentController.text.isEmpty ? null : commentController.text);
+        await _apiService.addReview(
+          widget.carRentalId,
+          rating,
+          commentController.text.trim().isEmpty ? null : commentController.text.trim(),
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Recenzja dodana pomyślnie'),
+            content: Text('Dziękujemy za opinię!'),
             backgroundColor: Colors.green,
           ),
         );
+
         Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Błąd podczas dodawania recenzji: $e'),
+          const SnackBar(
+            content: Text('Nie udało się dodać opinii. Spróbuj ponownie później.'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -55,13 +80,6 @@ class _AddReviewPageState extends State<AddReviewPage> {
           isLoading = false;
         });
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Wybierz ocenę'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
     }
   }
 
@@ -82,11 +100,10 @@ class _AddReviewPageState extends State<AddReviewPage> {
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: ListView(
             children: [
               const Text(
-                'Ocena (1-5):',
+                'Jak oceniasz tę usługę?',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
@@ -107,23 +124,23 @@ class _AddReviewPageState extends State<AddReviewPage> {
                   );
                 }),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               const Text(
-                'Komentarz (opcjonalnie):',
+                'Komentarz (opcjonalnie)',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: commentController,
                 decoration: InputDecoration(
-                  hintText: 'Wpisz swój komentarz...',
+                  hintText: 'Opisz swoje wrażenia...',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 maxLines: 5,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               Center(
                 child: ElevatedButton(
                   onPressed: _submitReview,
@@ -135,7 +152,7 @@ class _AddReviewPageState extends State<AddReviewPage> {
                     ),
                   ),
                   child: const Text(
-                    'Dodaj opinię',
+                    'Wyślij opinię',
                     style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
