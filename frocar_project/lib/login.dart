@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool skipNavigationOnLogin;
@@ -23,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String _message = '';
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberMe = true; // Domyślnie włączone "Zapamiętaj mnie"
 
   Future<void> _login() async {
     final username = _usernameController.text.trim();
@@ -42,7 +44,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
+      final storage = Provider.of<FlutterSecureStorage>(context, listen: false);
       final response = await apiService.login(username, password);
+
+      // Zapisz hasło tylko, jeśli wybrano "Zapamiętaj mnie"
+      if (_rememberMe) {
+        await storage.write(key: 'password', value: password);
+      } else {
+        await storage.delete(key: 'password');
+      }
 
       setState(() {
         _message = 'Zalogowano pomyślnie.';
@@ -114,6 +124,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            CheckboxListTile(
+              title: const Text('Zapamiętaj mnie'),
+              value: _rememberMe,
+              onChanged: (value) {
+                setState(() {
+                  _rememberMe = value ?? false;
+                });
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/reset-password');
+                },
+                child: const Text(
+                  'Zapomniałeś hasła?',
+                  style: TextStyle(color: Color(0xFF375534)),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -146,5 +179,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 }

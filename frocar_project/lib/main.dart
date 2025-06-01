@@ -5,8 +5,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:test_project/providers/theme_provider.dart';
 import 'package:test_project/providers/notification_provider.dart';
+import 'package:test_project/providers/user_provider.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
+import 'package:test_project/reset_password_page.dart';
 import 'rent_car_page.dart';
 import 'offer_car_page.dart';
 import 'login.dart';
@@ -50,8 +52,7 @@ Future<void> main() async {
     importance: Importance.max,
   );
   await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-      AndroidFlutterLocalNotificationsPlugin>()
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
 
   FirebaseMessaging messaging = FirebaseMessaging.instance;
@@ -132,6 +133,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    _loadSeenNotificationIds(); // Odczytujemy zapisane ID powiadomień
+    _checkAndRefreshLogin();
     _notificationPollingTimer =
         Timer.periodic(const Duration(seconds: 3), (timer) {
           _checkForNewNotifications();
@@ -140,21 +143,26 @@ class _MyAppState extends State<MyApp> {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Powiadomienie na pierwszym planie: ${message.messageId}');
       if (message.notification != null) {
-        flutterLocalNotificationsPlugin.show(
-          message.hashCode,
-          message.notification!.title,
-          message.notification!.body,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'frocar_channel',
-              'Frocar Notifications',
-              importance: Importance.max,
-              priority: Priority.high,
+        final notificationId = message.hashCode;
+        if (!_seenNotificationIds.contains(notificationId)) {
+          flutterLocalNotificationsPlugin.show(
+            notificationId,
+            message.notification!.title,
+            message.notification!.body,
+            const NotificationDetails(
+              android: AndroidNotificationDetails(
+                'frocar_channel',
+                'Frocar Notifications',
+                importance: Importance.max,
+                priority: Priority.high,
+              ),
             ),
-          ),
-        );
-        Provider.of<NotificationProvider>(context, listen: false)
-            .incrementNotificationCount();
+          );
+          _seenNotificationIds.add(notificationId);
+          _saveSeenNotificationIds(); // Zapisujemy ID po wyświetleniu
+          Provider.of<NotificationProvider>(context, listen: false)
+              .incrementNotificationCount();
+        }
       }
     });
 
@@ -173,6 +181,50 @@ class _MyAppState extends State<MyApp> {
         _syncPendingListingsAtStart();
       }
     });
+  }
+
+  // Funkcja do odczytywania zapisanych ID powiadomień
+  Future<void> _loadSeenNotificationIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedIds = prefs.getStringList('seen_notification_ids') ?? [];
+    setState(() {
+      _seenNotificationIds = savedIds.map((id) => int.parse(id)).toSet();
+    });
+    print('Wczytano zapisane ID powiadomień: $_seenNotificationIds');
+  }
+
+  // Funkcja do zapisywania ID powiadomień
+  Future<void> _saveSeenNotificationIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        'seen_notification_ids', _seenNotificationIds.map((id) => id.toString()).toList());
+    print('Zapisano ID powiadomień: $_seenNotificationIds');
+  }
+
+  Future<void> _checkAndRefreshLogin() async {
+    final apiService = Provider.of<ApiService>(context, listen: false);
+    final storage = Provider.of<FlutterSecureStorage>(context, listen: false);
+
+    final tokenValid = await apiService.isTokenValid();
+    if (!tokenValid) {
+      final username = await storage.read(key: 'username');
+      final password = await storage.read(key: 'password');
+      if (username != null && password != null) {
+        try {
+          await apiService.login(username, password);
+          print('Automatyczne logowanie powiodło się dla użytkownika: $username');
+        } catch (e) {
+          print('Automatyczne logowanie nie powiodło się: $e');
+          await storage.delete(key: 'token');
+          await storage.delete(key: 'username');
+          await storage.delete(key: 'password');
+          Provider.of<UserProvider>(context, listen: false).logout();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sesja wygasła. Zaloguj się ponownie.')),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -226,6 +278,7 @@ class _MyAppState extends State<MyApp> {
           );
           print('Powiadomienie wyświetlone.');
           _seenNotificationIds.add(notificationId);
+          _saveSeenNotificationIds(); // Zapisujemy ID po wyświetleniu
         }
       }
 
@@ -270,6 +323,7 @@ class _MyAppState extends State<MyApp> {
         '/offerCar': (context) => OfferCarPage(),
         '/loading': (context) => const LoadingScreen(),
         '/profile': (context) => const ProfilePage(),
+        '/reset-password': (context) => const ResetPasswordPage(),
         '/notifications': (context) => const NotificationsPage(),
       },
     );

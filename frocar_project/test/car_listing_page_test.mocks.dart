@@ -102,6 +102,15 @@ class MockApiService extends _i1.Mock implements _i4.ApiService {
           as String);
 
   @override
+  _i6.Future<void> requestPasswordReset(String? email) =>
+      (super.noSuchMethod(
+            Invocation.method(#requestPasswordReset, [email]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
   _i6.Future<Map<String, dynamic>> register(
     String? username,
     String? email,

@@ -27,7 +27,7 @@ class _RentCarPageState extends State<RentCarPage> {
   final Set<Marker> _markers = {};
   List<CarListing> _carListings = [];
   List<CarRental> _userRentals = [];
-  static const LatLng _center = LatLng(52.2296756, 21.0122287);
+  LatLng _center = const LatLng(52.2296756, 21.0122287); // Domyślnie Warszawa
   double _currentZoom = 11.0;
   static const double _zoomThreshold = 14.0;
   int? _currentUserId;
@@ -44,20 +44,85 @@ class _RentCarPageState extends State<RentCarPage> {
   double? _filterRadius;
   LatLng? _filterCityCoordinates;
 
-  final List<String> _availableFuelTypes = ['Benzyna', 'Diesel', 'Elektryczny', 'Hybryda', 'LPG'];
+  final List<String> _availableFuelTypes = [
+    'Benzyna',
+    'Diesel',
+    'Elektryczny',
+    'Hybryda',
+    'LPG'
+  ];
   final List<String> _availableCarTypes = [
-    'SUV', 'Sedan', 'Kombi', 'Hatchback', 'Coupe', 'Cabrio', 'Pickup', 'Van',
-    'Minivan', 'Crossover', 'Limuzyna', 'Microcar', 'Roadster', 'Muscle car',
-    'Terenowy', 'Targa'
+    'SUV',
+    'Sedan',
+    'Kombi',
+    'Hatchback',
+    'Coupe',
+    'Cabrio',
+    'Pickup',
+    'Van',
+    'Minivan',
+    'Crossover',
+    'Limuzyna',
+    'Microcar',
+    'Roadster',
+    'Muscle car',
+    'Terenowy',
+    'Targa'
   ];
 
   @override
   void initState() {
     super.initState();
+    _getCurrentLocation(); // Pobierz lokalizację użytkownika
     _loadCurrentUserId().then((_) {
       _loadCarListings();
       _loadUserRentals();
     });
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      // Sprawdź, czy usługi lokalizacji są włączone
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('Usługi lokalizacji są wyłączone.');
+        return;
+      }
+
+      // Sprawdź pozwolenia
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Pozwolenie na lokalizację odrzucone.');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('Pozwolenie na lokalizację permanentnie odrzucone.');
+        return;
+      }
+
+      // Pobierz bieżącą lokalizację
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _center = LatLng(position.latitude, position.longitude);
+      });
+
+      // Przesuń kamerę na bieżącą lokalizację
+      if (_controller != null) {
+        _controller!.animateCamera(
+          CameraUpdate.newLatLng(_center),
+        );
+      }
+    } catch (e) {
+      print('Błąd pobierania lokalizacji: $e');
+      // Użyj domyślnej pozycji (Warszawa) w przypadku błędu
+    }
   }
 
   Future<void> _loadCurrentUserId() async {
@@ -70,10 +135,12 @@ class _RentCarPageState extends State<RentCarPage> {
           throw Exception('Nieprawidłowy token JWT');
         }
         final payload = parts[1];
-        final decodedPayload = utf8.decode(base64.decode(base64.normalize(payload)));
+        final decodedPayload =
+        utf8.decode(base64.decode(base64.normalize(payload)));
         final decoded = jsonDecode(decodedPayload) as Map<String, dynamic>;
-        _currentUserId = int.parse(
-            decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ?? '0');
+        _currentUserId = int.parse(decoded[
+        'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ??
+            '0');
       } catch (e) {
         print('Błąd ładowania ID użytkownika: $e');
         _currentUserId = null;
@@ -92,7 +159,8 @@ class _RentCarPageState extends State<RentCarPage> {
           bool matches = listing.userId != _currentUserId && listing.isAvailable;
 
           if (_filterBrand != null && _filterBrand!.isNotEmpty) {
-            matches = matches && listing.brand.toLowerCase().contains(_filterBrand!.toLowerCase());
+            matches = matches &&
+                listing.brand.toLowerCase().contains(_filterBrand!.toLowerCase());
           }
 
           if (_minSeats != null) {
@@ -114,7 +182,10 @@ class _RentCarPageState extends State<RentCarPage> {
           }
 
           if (_filterCarTypes.isNotEmpty) {
-            matches = matches && _filterCarTypes.contains(listing.carType);
+            final lowerCaseCarTypes =
+            _filterCarTypes.map((type) => type.toLowerCase()).toList();
+            matches =
+                matches && lowerCaseCarTypes.contains(listing.carType.toLowerCase());
           }
 
           if (_filterCityCoordinates != null && _filterRadius != null) {
@@ -130,14 +201,18 @@ class _RentCarPageState extends State<RentCarPage> {
           return matches;
         }).toList();
         print('Załadowano ${_carListings.length} listingów');
+        _updateMarkers();
         if (_carListings.isEmpty) {
           _showErrorDialog('Brak dostępnych aut spełniających kryteria');
-        } else {
-          _updateMarkers();
         }
       });
     } catch (e) {
-      _showErrorDialog('Brak dostępnych aut do wypożyczenia: ${e.toString().replaceFirst('Exception: ', '')}');
+      setState(() {
+        _carListings = [];
+        _updateMarkers();
+      });
+      _showErrorDialog(
+          'Brak dostępnych aut do wypożyczenia: ${e.toString().replaceFirst('Exception: ', '')}');
     }
   }
 
@@ -207,7 +282,8 @@ class _RentCarPageState extends State<RentCarPage> {
 
     _markers.clear();
     for (var listing in _carListings) {
-      print('Dodaję marker dla ${listing.brand}, ID: ${listing.id}, współrzędne: (${listing.latitude}, ${listing.longitude})');
+      print(
+          'Dodaję marker dla ${listing.brand}, ID: ${listing.id}, współrzędne: (${listing.latitude}, ${listing.longitude})');
 
       if (listing.latitude.isNaN || listing.longitude.isNaN) {
         print('Błąd: Nieprawidłowe współrzędne dla markera ${listing.id}');
@@ -283,10 +359,12 @@ class _RentCarPageState extends State<RentCarPage> {
         bool isVisible = bounds.contains(marker.position);
         if (isVisible) {
           _controller!.showMarkerInfoWindow(marker.markerId);
-          print('Pokazuję InfoWindow dla markera ${marker.markerId} na pozycji ${marker.position}');
+          print(
+              'Pokazuję InfoWindow dla markera ${marker.markerId} na pozycji ${marker.position}');
         } else {
           _controller!.hideMarkerInfoWindow(marker.markerId);
-          print('Ukrywam InfoWindow dla markera ${marker.markerId}, bo jest poza widocznym obszarem');
+          print(
+              'Ukrywam InfoWindow dla markera ${marker.markerId}, bo jest poza widocznym obszarem');
         }
       }
     });
@@ -322,7 +400,8 @@ class _RentCarPageState extends State<RentCarPage> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             final filteredRentals = _userRentals.where((rental) {
-              print('Filtruję rental: ${rental.rentalStatus}, showEndedRentals: $showEndedRentals');
+              print(
+                  'Filtruję rental: ${rental.rentalStatus}, showEndedRentals: $showEndedRentals');
               return showEndedRentals || rental.rentalStatus != 'Zakończone';
             }).toList();
 
@@ -333,7 +412,8 @@ class _RentCarPageState extends State<RentCarPage> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -393,8 +473,8 @@ class _RentCarPageState extends State<RentCarPage> {
                             bool canAddReview = false;
                             if (reviewSnapshot.hasData) {
                               final reviews = reviewSnapshot.data!;
-                              canAddReview = !reviews.any(
-                                      (review) => review.carRentalId == rental.carRentalId);
+                              canAddReview = !reviews.any((review) =>
+                              review.carRentalId == rental.carRentalId);
                             }
 
                             return Card(
@@ -420,7 +500,8 @@ class _RentCarPageState extends State<RentCarPage> {
                                 ),
                                 subtitle: Text(
                                   'Od: ${rental.rentalStartDate.toString().substring(0, 10)} Do: ${rental.rentalEndDate.toString().substring(0, 10)}',
-                                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                  style: const TextStyle(
+                                      fontSize: 14, color: Colors.grey),
                                 ),
                                 trailing: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -447,7 +528,8 @@ class _RentCarPageState extends State<RentCarPage> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 16.0, vertical: 8.0),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           children: [
@@ -490,7 +572,8 @@ class _RentCarPageState extends State<RentCarPage> {
                                             ),
                                           ],
                                         ),
-                                        if (rental.rentalStatus == 'Zakończone' && canAddReview) ...[
+                                        if (rental.rentalStatus == 'Zakończone' &&
+                                            canAddReview) ...[
                                           const SizedBox(height: 16),
                                           Center(
                                             child: ElevatedButton(
@@ -498,10 +581,13 @@ class _RentCarPageState extends State<RentCarPage> {
                                                 Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                    builder: (context) => AddReviewPage(
-                                                      carRentalId: rental.carRentalId,
-                                                      carListingId: rental.carListingId,
-                                                    ),
+                                                    builder: (context) =>
+                                                        AddReviewPage(
+                                                          carRentalId:
+                                                          rental.carRentalId,
+                                                          carListingId:
+                                                          rental.carListingId,
+                                                        ),
                                                   ),
                                                 ).then((_) {
                                                   _loadUserRentals();
@@ -509,16 +595,23 @@ class _RentCarPageState extends State<RentCarPage> {
                                                 });
                                               },
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: const Color(0xFF375534),
-                                                padding: const EdgeInsets.symmetric(
-                                                    horizontal: 32, vertical: 12),
+                                                backgroundColor:
+                                                const Color(0xFF375534),
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                    horizontal: 32,
+                                                    vertical: 12),
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(12),
+                                                  borderRadius:
+                                                  BorderRadius.circular(
+                                                      12),
                                                 ),
                                               ),
                                               child: const Text(
                                                 'Dodaj opinię',
-                                                style: TextStyle(fontSize: 16, color: Colors.white),
+                                                style: TextStyle(
+                                                    fontSize: 16,
+                                                    color: Colors.white),
                                               ),
                                             ),
                                           ),
@@ -651,7 +744,8 @@ class _RentCarPageState extends State<RentCarPage> {
                               labelText: 'Min. cena (PLN)',
                               border: OutlineInputBorder(),
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -662,7 +756,8 @@ class _RentCarPageState extends State<RentCarPage> {
                               labelText: 'Maks. cena (PLN)',
                               border: OutlineInputBorder(),
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
                           ),
                         ),
                       ],
@@ -710,7 +805,8 @@ class _RentCarPageState extends State<RentCarPage> {
                         labelText: 'Promień (km)',
                         border: OutlineInputBorder(),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -751,10 +847,12 @@ class _RentCarPageState extends State<RentCarPage> {
                                 LatLng? cityCoordinates;
                                 if (cityController.text.isNotEmpty) {
                                   try {
-                                    final locations = await locationFromAddress(cityController.text);
+                                    final locations =
+                                    await locationFromAddress(cityController.text);
                                     if (locations.isNotEmpty) {
                                       final location = locations.first;
-                                      cityCoordinates = LatLng(location.latitude, location.longitude);
+                                      cityCoordinates =
+                                          LatLng(location.latitude, location.longitude);
                                     } else {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
@@ -767,7 +865,8 @@ class _RentCarPageState extends State<RentCarPage> {
                                   } catch (e) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Błąd podczas wyszukiwania miasta: $e'),
+                                        content:
+                                        Text('Błąd podczas wyszukiwania miasta: $e'),
                                         backgroundColor: Colors.red,
                                       ),
                                     );
@@ -776,7 +875,9 @@ class _RentCarPageState extends State<RentCarPage> {
                                 }
 
                                 setState(() {
-                                  _filterBrand = brandController.text.isEmpty ? null : brandController.text;
+                                  _filterBrand = brandController.text.isEmpty
+                                      ? null
+                                      : brandController.text;
                                   _minSeats = minSeatsController.text.isEmpty
                                       ? null
                                       : int.tryParse(minSeatsController.text);
@@ -791,7 +892,9 @@ class _RentCarPageState extends State<RentCarPage> {
                                       ? null
                                       : double.tryParse(maxPriceController.text);
                                   _filterCarTypes = tempCarTypes;
-                                  _filterCity = cityController.text.isEmpty ? null : cityController.text;
+                                  _filterCity = cityController.text.isEmpty
+                                      ? null
+                                      : cityController.text;
                                   _filterRadius = radiusController.text.isEmpty
                                       ? null
                                       : double.tryParse(radiusController.text);
@@ -839,8 +942,12 @@ class _RentCarPageState extends State<RentCarPage> {
               print('Mapa utworzona, controller: $controller');
               _controller = controller;
               _setMapStyle();
+              // Przesuń kamerę na początkową pozycję (lokalizacja użytkownika lub Warszawa)
+              _controller!.animateCamera(
+                CameraUpdate.newLatLng(_center),
+              );
             },
-            initialCameraPosition: const CameraPosition(
+            initialCameraPosition: CameraPosition(
               target: _center,
               zoom: 11.0,
             ),

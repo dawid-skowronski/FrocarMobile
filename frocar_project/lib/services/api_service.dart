@@ -30,6 +30,37 @@ class ApiService {
     return headers;
   }
 
+  Future<void> requestPasswordReset(String email) async {
+    final url = Uri.parse('$baseUrl/api/Account/request-password-reset');
+    try {
+      final response = await _client.post(
+        url,
+        headers: await _getHeaders(),
+        body: json.encode(email),
+      );
+
+      if (response.statusCode != 200) {
+        final errorBody = json.decode(utf8.decode(response.bodyBytes));
+        print('DEBUG: Odpowiedź błędu z API (status: ${response.statusCode}): $errorBody');
+
+        String errorMessage;
+
+        if (errorBody is Map && errorBody.containsKey('message') && errorBody['message'] is String) {
+          errorMessage = errorBody['message'];
+        } else if (errorBody is Map && errorBody.containsKey('error') && errorBody['error'] is String) {
+          errorMessage = errorBody['error'];
+        }
+        else {
+          errorMessage = 'Błąd serwera (status: ${response.statusCode})';
+        }
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('DEBUG: Wyjątek w ApiService.requestPasswordReset: $e');
+      throw Exception('Błąd podczas wysyłania żądania resetowania hasła: $e');
+    }
+  }
+
   Future<Map<String, dynamic>> register(
       String username, String email, String password, String confirmPassword) async {
     final url = Uri.parse('$baseUrl/api/account/register');
@@ -133,6 +164,7 @@ class ApiService {
       if (response.statusCode == 200) {
         await _storage.delete(key: 'token');
         await _storage.delete(key: 'username');
+        await _storage.delete(key: 'password');
       } else {
         final bodyString = utf8.decode(response.bodyBytes);
         if (bodyString.isNotEmpty) {
@@ -145,6 +177,7 @@ class ApiService {
     } catch (e) {
       await _storage.delete(key: 'token');
       await _storage.delete(key: 'username');
+      await _storage.delete(key: 'password');
       throw Exception('Błąd podczas wylogowywania: $e');
     }
   }

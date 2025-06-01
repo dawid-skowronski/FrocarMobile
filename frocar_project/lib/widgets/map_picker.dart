@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:test_project/providers/theme_provider.dart';
+import 'package:geolocator/geolocator.dart';
 
 class SelectedLocation {
   final double latitude;
@@ -28,18 +29,68 @@ class _MapPickerState extends State<MapPicker> {
   bool _isSearching = false;
   String? _mapStyle;
   late http.Client client;
-
-  static const LatLng _initialPosition = LatLng(52.2297, 21.0122);
+  LatLng _initialPosition = const LatLng(52.2297, 21.0122); // Domyślnie Warszawa
 
   @override
   void initState() {
     super.initState();
     client = widget.httpClient ?? http.Client();
+    _getCurrentLocation(); // Pobierz lokalizację użytkownika
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      // Sprawdź, czy usługi lokalizacji są włączone
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('Usługi lokalizacji są wyłączone.');
+        return;
+      }
+
+      // Sprawdź pozwolenia
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Pozwolenie na lokalizację odrzucone.');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('Pozwolenie na lokalizację permanentnie odrzucone.');
+        return;
+      }
+
+      // Pobierz bieżącą lokalizację
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _initialPosition = LatLng(position.latitude, position.longitude);
+        _selectedLocation = _initialPosition; // Ustaw domyślnie wybraną lokalizację
+      });
+
+      // Przesuń kamerę na bieżącą lokalizację
+      if (_controller != null) {
+        _controller!.animateCamera(
+          CameraUpdate.newLatLng(_initialPosition),
+        );
+      }
+    } catch (e) {
+      print('Błąd pobierania lokalizacji: $e');
+      // Użyj domyślnej pozycji (Warszawa) w przypadku błędu
+    }
   }
 
   void _onMapCreated(GoogleMapController controller) async {
     _controller = controller;
     await _loadMapStyle();
+    // Przesuń kamerę na początkową pozycję (lokalizacja użytkownika lub Warszawa)
+    _controller!.animateCamera(
+      CameraUpdate.newLatLng(_initialPosition),
+    );
   }
 
   void _onMapTapped(LatLng position) {
@@ -70,7 +121,7 @@ class _MapPickerState extends State<MapPicker> {
       final response = await client.get(
         url,
         headers: {
-          'User-Agent': 'FrogCarApp/1.0 (twoj.email@example.com)',
+          'User-Agent': 'FrogCarApp/1.0 (jakub.trznadel@studenci.collegiumwitelona.pl)',
         },
       );
 
@@ -178,7 +229,7 @@ class _MapPickerState extends State<MapPicker> {
           Expanded(
             child: GoogleMap(
               onMapCreated: _onMapCreated,
-              initialCameraPosition: const CameraPosition(
+              initialCameraPosition: CameraPosition(
                 target: _initialPosition,
                 zoom: 10,
               ),
@@ -201,6 +252,7 @@ class _MapPickerState extends State<MapPicker> {
   @override
   void dispose() {
     addressController.dispose();
+    client.close();
     super.dispose();
   }
 }
