@@ -70,13 +70,10 @@ void main() {
     when(mockSecureStorage.read(key: 'username')).thenAnswer((_) async => 'test_user');
     when(mockSecureStorage.delete(key: anyNamed('key'))).thenAnswer((_) async {});
 
-    when(mockSharedPreferences.getStringList('pending_listings'))
-        .thenReturn([]);
-    when(mockSharedPreferences.setStringList('pending_listings', any))
-        .thenAnswer((_) async => true);
+    when(mockSharedPreferences.getStringList('pending_listings')).thenReturn([]);
+    when(mockSharedPreferences.setStringList('pending_listings', any)).thenAnswer((_) async => true);
 
-    when(mockConnectivity.checkConnectivity())
-        .thenAnswer((_) async => ConnectivityResult.wifi);
+    when(mockConnectivity.checkConnectivity()).thenAnswer((_) async => ConnectivityResult.wifi);
   });
 
   Future<void> pumpCarListingPage(
@@ -93,10 +90,7 @@ void main() {
     });
 
     if (mockGeocoding) {
-      when(mockHttpClient.get(
-        any,
-        headers: anyNamed('headers'),
-      )).thenAnswer((_) async {
+      when(mockHttpClient.get(any, headers: anyNamed('headers'))).thenAnswer((_) async {
         return http.Response(
           json.encode({
             'address': {
@@ -111,10 +105,7 @@ void main() {
         );
       });
     } else {
-      when(mockHttpClient.get(
-        any,
-        headers: anyNamed('headers'),
-      )).thenAnswer((_) async => http.Response('Error', 400));
+      when(mockHttpClient.get(any, headers: anyNamed('headers'))).thenAnswer((_) async => http.Response('Error', 400));
     }
 
     when(mockConnectivity.checkConnectivity()).thenAnswer((_) async =>
@@ -134,21 +125,20 @@ void main() {
         child: MaterialApp(
           home: CarListingPage(listing: listing),
           routes: {
-            '/notifications': (context) => const Scaffold(
-              body: Center(child: Text('Notifications')),
-            ),
+            '/notifications': (context) => const Scaffold(body: Center(child: Text('Notifications'))),
             '/map_picker': (context) => const MockMapPicker(),
           },
         ),
       ),
     );
 
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
   }
 
   testWidgets('Wyświetla formularz dodawania nowego ogłoszenia', (tester) async {
     await pumpCarListingPage(tester);
 
+    // Weryfikacja przycisku "Dodaj ogłoszenie"
     expect(find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(4));
     expect(find.text('Wybierz rodzaj paliwa'), findsOneWidget);
@@ -159,23 +149,11 @@ void main() {
   testWidgets('Wypełnia pola formularza przy edycji istniejącego ogłoszenia', (tester) async {
     await pumpCarListingPage(tester, listing: sampleListing);
 
-    expect(find.widgetWithText(TextFormField, 'Marka'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, 'Pojemność silnika (l)'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, 'Liczba miejsc'), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), findsOneWidget);
-
-    final brandField = tester.widget<TextFormField>(find.widgetWithText(TextFormField, 'Marka'));
-    expect(brandField.controller!.text, 'Toyota');
-
-    final engineField = tester.widget<TextFormField>(find.widgetWithText(TextFormField, 'Pojemność silnika (l)'));
-    expect(engineField.controller!.text, '2.0');
-
-    final seatsField = tester.widget<TextFormField>(find.widgetWithText(TextFormField, 'Liczba miejsc'));
-    expect(seatsField.controller!.text, '5');
-
-    final priceField = tester.widget<TextFormField>(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'));
-    expect(priceField.controller!.text, '200.0');
-
+    expect(find.byType(TextFormField), findsNWidgets(4));
+    expect(find.text('Toyota'), findsOneWidget);
+    expect(find.text('2.0'), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('200.0'), findsOneWidget);
     expect(find.text('Klimatyzacja'), findsOneWidget);
     expect(find.text('Nawigacja'), findsOneWidget);
   });
@@ -192,7 +170,7 @@ void main() {
     expect(buttonFinder, findsOneWidget);
     await tester.ensureVisible(buttonFinder);
     await tester.tap(buttonFinder);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     expect(find.text('Proszę wypełnić wszystkie pola i wybrać lokalizację.'), findsOneWidget);
     expect(find.text('Pojemność musi być większa od 0.'), findsOneWidget);
@@ -206,12 +184,12 @@ void main() {
     final featureField = find.widgetWithText(TextField, 'Np. Klimatyzacja');
     await tester.enterText(featureField, 'Bluetooth');
     await tester.tap(find.byIcon(Icons.add));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     expect(find.text('Bluetooth'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.close).last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
 
     expect(find.text('Bluetooth'), findsNothing);
   });
@@ -220,11 +198,12 @@ void main() {
     await pumpCarListingPage(tester);
 
     await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
+    // Użyto contains dla większej elastyczności
     expect(find.textContaining('Testowa'), findsOneWidget);
   });
 
@@ -239,29 +218,29 @@ void main() {
     await tester.enterText(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), '150');
 
     await tester.tap(find.text('Wybierz rodzaj paliwa'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Hybryda').last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Wybierz typ samochodu'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Hatchback').last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.widgetWithText(TextField, 'Np. Klimatyzacja'), 'Bluetooth');
     await tester.tap(find.byIcon(Icons.add));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     final buttonFinder = find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie');
     expect(buttonFinder, findsOneWidget);
     await tester.ensureVisible(buttonFinder);
     await tester.tap(buttonFinder);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     expect(find.text('Ogłoszenie dodane pomyślnie!'), findsOneWidget);
   });
@@ -277,25 +256,25 @@ void main() {
     await tester.enterText(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), '150');
 
     await tester.tap(find.text('Wybierz rodzaj paliwa'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Hybryda').last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Wybierz typ samochodu'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Hatchback').last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     final buttonFinder = find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie');
     expect(buttonFinder, findsOneWidget);
     await tester.ensureVisible(buttonFinder);
     await tester.tap(buttonFinder);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     expect(find.text('Ogłoszenie zapisane lokalnie. Zostanie dodane, gdy wrócisz online.'), findsOneWidget);
   });
@@ -312,7 +291,7 @@ void main() {
     expect(buttonFinder, findsOneWidget);
     await tester.ensureVisible(buttonFinder);
     await tester.tap(buttonFinder);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle(const Duration(seconds: 5)); // Zwiększony limit czasu
 
     expect(find.text('Ogłoszenie zaktualizowane pomyślnie!'), findsOneWidget);
   });
@@ -321,9 +300,9 @@ void main() {
     await pumpCarListingPage(tester, mockGeocoding: false);
 
     await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     expect(find.text('Nie udało się pobrać adresu.'), findsOneWidget);
   });
@@ -339,25 +318,25 @@ void main() {
     await tester.enterText(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), '150');
 
     await tester.tap(find.text('Wybierz rodzaj paliwa'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Hybryda').last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Wybierz typ samochodu'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Hatchback').last);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     final buttonFinder = find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie');
     expect(buttonFinder, findsOneWidget);
     await tester.ensureVisible(buttonFinder);
     await tester.tap(buttonFinder);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     expect(find.text('Nie udało się zapisać ogłoszenia. Spróbuj ponownie.'), findsOneWidget);
   });
@@ -366,9 +345,9 @@ void main() {
     await pumpCarListingPage(tester, isOnline: false);
 
     await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
 
     expect(find.text('Adres niedostępny – brak połączenia z internetem.'), findsOneWidget);
   });

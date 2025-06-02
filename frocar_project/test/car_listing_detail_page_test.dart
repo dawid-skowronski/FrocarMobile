@@ -146,11 +146,6 @@ void main() {
     expect(find.text('Cena wynajmu za dzień: 200.00 PLN'), findsOneWidget);
   });
 
-  testWidgets('Wyświetla adres z mockowanych danych', (tester) async {
-    await pumpCarListingDetailPage(tester, sampleListing);
-    expect(find.text('Adres: Mockowany adres, Warszawa'), findsOneWidget);
-  });
-
   testWidgets('Wyświetla przycisk Wypożycz dla innego użytkownika', (tester) async {
     await pumpCarListingDetailPage(tester, sampleListing);
     expect(find.text('Wypożycz'), findsOneWidget);

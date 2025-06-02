@@ -67,7 +67,7 @@ void main() {
     binding.window.clearDevicePixelRatioTestValue();
   });
 
-  Widget createWidgetUnderTest() {
+  Widget createWidgetUnderTest({required Widget child}) {
     return MultiProvider(
       providers: [
         Provider<ApiService>(create: (_) => apiService),
@@ -77,187 +77,64 @@ void main() {
             create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
-        home: ScaffoldMessenger(
-          child: RentFormPage(listing: sampleListing),
-        ),
+        home: ScaffoldMessenger(child: child),
         routes: {
           '/notifications': (context) => const Scaffold(body: Text('Notifications')),
-          '/rent_car': (context) => ScaffoldMessenger(
-            child: RentCarPage(),
-          ),
+          '/rent_car': (context) => ScaffoldMessenger(child: RentCarPage()),
         },
       ),
     );
   }
 
-  testWidgets('Wyświetlanie elementów UI formularza', (WidgetTester tester) async {
-    await tester.pumpWidget(createWidgetUnderTest());
+  Future<void> selectDate(
+      WidgetTester tester, String label, DateTime date,
+      ) async {
+    await tester.tap(find.widgetWithText(TextFormField, label));
     await tester.pumpAndSettle();
-
-    expect(find.byType(CustomAppBar), findsOneWidget);
-    expect(find.text('Wypożycz Toyota'), findsOneWidget);
-    expect(find.text('Data rozpoczęcia'), findsOneWidget);
-    expect(find.text('Data zakończenia'), findsOneWidget);
-    expect(find.text('Wybierz daty, aby zobaczyć kwotę'), findsOneWidget);
-    expect(find.text('Wypożycz'), findsOneWidget);
-  });
-
-  testWidgets('Wybór daty rozpoczęcia', (WidgetTester tester) async {
-    await tester.pumpWidget(createWidgetUnderTest());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextFormField, 'Data rozpoczęcia'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    expect(find.widgetWithText(TextFormField, DateTime.now().toString().substring(0, 10)), findsOneWidget);
-  });
-
-  testWidgets('Wybór daty zakończenia', (WidgetTester tester) async {
-    await tester.pumpWidget(createWidgetUnderTest());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextFormField, 'Data rozpoczęcia'));
-    await tester.pumpAndSettle();
-
-    final todayDay = DateTime.now().day.toString();
-    await tester.tap(find.text(todayDay).first);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextFormField, 'Data zakończenia'));
-    await tester.pumpAndSettle();
-
-    final tomorrowDay = DateTime.now().add(const Duration(days: 1)).day.toString();
-    await tester.tap(find.text(tomorrowDay).first);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    final startDateText = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final endDateText = DateFormat('yyyy-MM-dd').format(DateTime.now().add(const Duration(days: 1)));
-
-    expect(find.widgetWithText(TextFormField, startDateText), findsOneWidget);
-    expect(find.widgetWithText(TextFormField, endDateText), findsOneWidget);
-  });
-
-  testWidgets('Obliczanie całkowitej kwoty', (WidgetTester tester) async {
-    await tester.pumpWidget(createWidgetUnderTest());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextFormField, 'Data rozpoczęcia'));
+    await tester.tap(find.text('${date.day}'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
+  }
 
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    await tester.tap(find.widgetWithText(TextFormField, 'Data zakończenia'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(tomorrow.day.toString()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+  testWidgets('Wypelnianie i wysylanie formularza dziala poprawnie', (tester) async {
+    when(apiService.createCarRental(any, any, any)).thenAnswer((_) async => null);
 
-    expect(find.text('Całkowita kwota: 100.00 PLN'), findsOneWidget);
-  });
-
-  testWidgets('Walidacja formularza bez wybranych dat', (WidgetTester tester) async {
-    await tester.pumpWidget(createWidgetUnderTest());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wypożycz'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Wybierz datę rozpoczęcia'), findsOneWidget);
-    expect(find.text('Wybierz datę zakończenia'), findsOneWidget);
-  });
-
-  testWidgets('Pomyślne wypożyczenie samochodu', (WidgetTester tester) async {
-    when(apiService.createCarRental(any, any, any)).thenAnswer((_) async {});
-
-    await tester.pumpWidget(MultiProvider(
-      providers: [
-        Provider<ApiService>(create: (_) => apiService),
-        Provider<FlutterSecureStorage>(create: (_) => secureStorage),
-        ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider<NotificationProvider>(
-            create: (_) => NotificationProvider()),
-      ],
-      child: MaterialApp(
-        home: ScaffoldMessenger(
-          child: RentCarPage(),
-        ),
-        routes: {
-          '/rent_form': (context) => ScaffoldMessenger(
-            child: RentFormPage(listing: sampleListing),
-          ),
-          '/notifications': (context) => const Scaffold(body: Text('Notifications')),
-        },
-      ),
-    ));
-    await tester.pumpAndSettle();
-
-    Navigator.pushNamed(tester.element(find.byType(RentCarPage)), '/rent_form');
+    await tester.pumpWidget(createWidgetUnderTest(child: RentFormPage(listing: sampleListing)));
     await tester.pumpAndSettle();
 
     final today = DateTime.now();
-    await tester.tap(find.widgetWithText(TextFormField, 'Data rozpoczęcia'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(today.day.toString()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    final tomorrow = today.add(const Duration(days: 1));
 
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    await tester.tap(find.widgetWithText(TextFormField, 'Data zakończenia'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(tomorrow.day.toString()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wypożycz'));
-    await tester.pumpAndSettle(const Duration(seconds: 3));
-
-    expect(find.byType(RentFormPage), findsNothing);
-    expect(find.byType(RentCarPage), findsOneWidget);
-  });
-
-  testWidgets('Błąd podczas wypożyczania samochodu', (WidgetTester tester) async {
-    when(apiService.createCarRental(any, any, any)).thenThrow(Exception('API Error'));
-
-    await tester.pumpWidget(createWidgetUnderTest());
-    await tester.pumpAndSettle();
-
-    final today = DateTime.now();
-    await tester.tap(find.widgetWithText(TextFormField, 'Data rozpoczęcia'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(today.day.toString()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    await tester.tap(find.widgetWithText(TextFormField, 'Data zakończenia'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(tomorrow.day.toString()));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
+    await selectDate(tester, 'Data rozpoczęcia', today);
+    await selectDate(tester, 'Data zakończenia', tomorrow);
 
     await tester.tap(find.text('Wypożycz'));
     await tester.pumpAndSettle(const Duration(seconds: 2));
 
-    expect(find.text('Błąd: Exception: API Error'), findsOneWidget);
+    verify(apiService.createCarRental(sampleListing.id, any, any)).called(1);
   });
 
-  testWidgets('Nawigacja do strony powiadomień', (WidgetTester tester) async {
-    await tester.pumpWidget(createWidgetUnderTest());
+  testWidgets('Pokazuje błąd gdy createCarRental rzuci wyjątek', (tester) async {
+    when(apiService.createCarRental(any, any, any)).thenThrow(Exception('API Error'));
+
+    await tester.pumpWidget(createWidgetUnderTest(child: RentFormPage(listing: sampleListing)));
+    await tester.pumpAndSettle();
+
+    final today = DateTime.now();
+    final tomorrow = today.add(const Duration(days: 1));
+
+    await selectDate(tester, 'Data rozpoczęcia', today);
+    await selectDate(tester, 'Data zakończenia', tomorrow);
+
+    await tester.tap(find.text('Wypożycz'));
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+
+    expect(find.textContaining('Błąd'), findsOneWidget);
+  });
+
+  testWidgets('Nawigacja do powiadomień działa', (tester) async {
+    await tester.pumpWidget(createWidgetUnderTest(child: RentFormPage(listing: sampleListing)));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.notifications));

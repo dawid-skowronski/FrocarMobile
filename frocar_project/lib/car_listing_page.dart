@@ -1,15 +1,52 @@
 import 'package:flutter/material.dart';
-import 'package:test_project/models/car_listing.dart';
-import 'package:test_project/services/api_service.dart';
-import 'package:test_project/widgets/custom_app_bar.dart';
-import 'package:test_project/widgets/map_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:test_project/providers/theme_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../widgets/custom_app_bar.dart';
+import '../models/car_listing.dart';
+import '../services/api_service.dart';
+import '../widgets/map_picker.dart';
+import '../providers/theme_provider.dart';
+
+const String _addListingTitle = "Dodaj ogłoszenie";
+const String _editListingTitle = "Edytuj ogłoszenie";
+const String _brandHint = 'Marka';
+const String _engineCapacityHint = 'Pojemność silnika (l)';
+const String _fuelTypeSelectionTitle = 'Wybierz rodzaj paliwa';
+const String _fuelTypeHint = 'Wybierz rodzaj paliwa';
+const String _seatsHint = 'Liczba miejsc';
+const String _carTypeSelectionTitle = 'Wybierz typ samochodu';
+const String _carTypeHint = 'Wybierz typ samochodu';
+const String _rentalPriceHint = 'Cena wynajmu za dzień (PLN)';
+const String _featuresLabel = 'Dodatki:';
+const String _featureHint = 'Np. Klimatyzacja';
+const String _selectLocationButton = 'Wybierz lokalizację na mapie';
+const String _selectedLocationLabel = 'Wybrana lokalizacja:';
+const String _addressLabel = 'Adres:';
+const String _addListingButton = 'Dodaj ogłoszenie';
+const String _saveChangesButton = 'Zapisz zmiany';
+
+const String _fieldRequired = 'Pole wymagane.';
+const String _invalidNumber = 'Podaj prawidłową liczbę.';
+const String _valueGreaterThanZero = 'Musi być większa od 0.';
+const String _addressNotAvailableOffline = 'Adres niedostępny – brak połączenia z internetem.';
+const String _connectionTimeout = 'Przekroczono limit czasu połączenia.';
+const String _addressFetchFailed = 'Nie udało się pobrać adresu. Spróbuj ponownie.';
+const String _noAddressFound = 'Nie udało się znaleźć adresu.';
+const String _noInternetConnection = 'Brak połączenia z internetem. Sprawdź swoje połączenie.';
+const String _listingSavedLocally = 'Ogłoszenie zapisane lokalnie. Zostanie dodane, gdy wrócisz online.';
+const String _listingAddedSuccessfully = 'Ogłoszenie dodane pomyślnie!';
+const String _listingUpdatedSuccessfully = 'Ogłoszenie zaktualizowane pomyślnie!';
+const String _syncSuccess = 'Ogłoszenie zsynchronizowane pomyślnie!';
+const String _syncFailed = 'Nie udało się zsynchronizować ogłoszenia. Spróbuj ponownie.';
+const String _missingToken = 'Brak tokenu. Zaloguj się ponownie.';
+const String _loginRequired = 'Musisz się zalogować, aby dodać ogłoszenie.';
+const String _saveFailed = 'Nie udało się zapisać ogłoszenia. Spróbuj ponownie.';
+const String _fillAllFields = 'Proszę wypełnić wszystkie pola i wybrać lokalizację.';
+
 
 class CarListingPage extends StatefulWidget {
   final CarListing? listing;
@@ -22,61 +59,67 @@ class CarListingPage extends StatefulWidget {
 
 class _CarListingPageState extends State<CarListingPage> {
   final _formKey = GlobalKey<FormState>();
-  final brandController = TextEditingController();
-  final engineCapacityController = TextEditingController();
-  final seatsController = TextEditingController();
-  final rentalPriceController = TextEditingController();
-  String? fuelType;
-  String? carType;
-  List<String> features = [];
-  final featureController = TextEditingController();
-  double? latitude;
-  double? longitude;
-  String? displayAddress;
-  bool isLoading = false;
+  final TextEditingController _brandController = TextEditingController();
+  final TextEditingController _engineCapacityController = TextEditingController();
+  final TextEditingController _seatsController = TextEditingController();
+  final TextEditingController _rentalPriceController = TextEditingController();
+  String? _selectedFuelType;
+  String? _selectedCarType;
+  final List<String> _features = [];
+  final TextEditingController _featureController = TextEditingController();
+  double? _latitude;
+  double? _longitude;
+  String? _displayAddress;
+  bool _isLoading = false;
   final _storage = const FlutterSecureStorage();
 
-  final List<String> fuelTypes = [
-    'Benzyna',
-    'Diesel',
-    'Elektryczny',
-    'Hybryda',
-    'LPG'
+  final List<String> _fuelTypes = [
+    'Benzyna', 'Diesel', 'Elektryczny', 'Hybryda', 'LPG'
   ];
-  final List<String> carTypes = [
-    'SUV',
-    'Sedan',
-    'Kombi',
-    'Hatchback',
-    'Coupe',
-    'Cabrio',
-    'Pickup',
-    'Van',
-    'Minivan',
-    'Crossover',
-    'Limuzyna',
-    'Microcar',
-    'Roadster',
-    'Muscle car',
-    'Terenowy',
-    'Targa'
+  final List<String> _carTypes = [
+    'SUV', 'Sedan', 'Kombi', 'Hatchback', 'Coupe', 'Cabrio', 'Pickup', 'Van',
+    'Minivan', 'Crossover', 'Limuzyna', 'Microcar', 'Roadster', 'Muscle car', 'Terenowy', 'Targa'
   ];
 
   @override
   void initState() {
     super.initState();
+    _initializeFormFields();
+  }
+
+  void _initializeFormFields() {
     if (widget.listing != null) {
-      brandController.text = widget.listing!.brand;
-      engineCapacityController.text = widget.listing!.engineCapacity.toString();
-      seatsController.text = widget.listing!.seats.toString();
-      rentalPriceController.text = widget.listing!.rentalPricePerDay.toString();
-      fuelType = widget.listing!.fuelType;
-      carType = widget.listing!.carType;
-      features = List.from(widget.listing!.features);
-      latitude = widget.listing!.latitude;
-      longitude = widget.listing!.longitude;
-      _tryReverseGeocode(latitude!, longitude!);
+      _brandController.text = widget.listing!.brand;
+      _engineCapacityController.text = widget.listing!.engineCapacity.toString();
+      _seatsController.text = widget.listing!.seats.toString();
+      _rentalPriceController.text = widget.listing!.rentalPricePerDay.toString();
+      _selectedFuelType = widget.listing!.fuelType;
+      _selectedCarType = widget.listing!.carType;
+      _features.addAll(widget.listing!.features);
+      _latitude = widget.listing!.latitude;
+      _longitude = widget.listing!.longitude;
+      _tryReverseGeocode(_latitude!, _longitude!);
     }
+  }
+
+  @override
+  void dispose() {
+    _brandController.dispose();
+    _engineCapacityController.dispose();
+    _seatsController.dispose();
+    _rentalPriceController.dispose();
+    _featureController.dispose();
+    super.dispose();
+  }
+
+  void _showSnackBar(String message, Color backgroundColor) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+      ),
+    );
   }
 
   Future<void> _selectLocation() async {
@@ -86,27 +129,23 @@ class _CarListingPageState extends State<CarListingPage> {
     );
     if (selectedLocation != null) {
       setState(() {
-        latitude = selectedLocation.latitude;
-        longitude = selectedLocation.longitude;
-        displayAddress = null;
+        _latitude = selectedLocation.latitude;
+        _longitude = selectedLocation.longitude;
+        _displayAddress = null;
       });
-
-      await _tryReverseGeocode(latitude!, longitude!);
+      await _tryReverseGeocode(_latitude!, _longitude!);
     }
   }
 
   Future<void> _tryReverseGeocode(double lat, double lon) async {
-    bool isOnline = await _isOnline();
-    if (!isOnline) {
+    if (!(await _isOnline())) {
       setState(() {
-        displayAddress = 'Adres niedostępny – brak połączenia z internetem.';
+        _displayAddress = _addressNotAvailableOffline;
       });
       return;
     }
 
-    setState(() {
-      isLoading = true;
-    });
+    _setLoadingState(true);
 
     try {
       await Future.delayed(const Duration(seconds: 1));
@@ -115,11 +154,10 @@ class _CarListingPageState extends State<CarListingPage> {
       final response = await http.get(
         url,
         headers: {
-          'User-Agent':
-          'FrogCarApp/1.0 (jakub.trznadel@studenci.collegiumwitelona.pl)',
+          'User-Agent': 'FrogCarApp/1.0 (jakub.trznadel@studenci.collegiumwitelona.pl)',
         },
       ).timeout(const Duration(seconds: 10), onTimeout: () {
-        throw Exception('Przekroczono limit czasu połączenia.');
+        throw Exception(_connectionTimeout);
       });
 
       if (response.statusCode == 200) {
@@ -129,43 +167,34 @@ class _CarListingPageState extends State<CarListingPage> {
           final street = address['road'] ?? '';
           final houseNumber = address['house_number'] ?? '';
           final state = address['state'] ?? '';
-          final city =
-              address['city'] ?? address['town'] ?? address['village'] ?? '';
+          final city = address['city'] ?? address['town'] ?? address['village'] ?? '';
           final postcode = address['postcode'] ?? '';
           setState(() {
-            displayAddress = '$street, $houseNumber, $state, $city, $postcode';
+            _displayAddress = '$street, $houseNumber, $state, $city, $postcode';
           });
         } else {
           setState(() {
-            displayAddress = 'Nie udało się znaleźć adresu.';
+            _displayAddress = _noAddressFound;
           });
         }
       } else {
-        throw Exception('Nie udało się pobrać adresu. Spróbuj ponownie.');
+        throw Exception('$_addressFetchFailed (${response.statusCode})');
       }
     } catch (e) {
       String errorMessage;
       if (e.toString().contains('failed host lookup')) {
-        errorMessage = 'Brak połączenia z internetem. Sprawdź swoje połączenie.';
-      } else if (e.toString().contains('Przekroczono limit czasu')) {
-        errorMessage = 'Przekroczono limit czasu. Spróbuj ponownie później.';
+        errorMessage = _noInternetConnection;
+      } else if (e.toString().contains(_connectionTimeout)) {
+        errorMessage = _connectionTimeout;
       } else {
-        errorMessage = 'Nie udało się pobrać adresu. Spróbuj ponownie.';
+        errorMessage = _addressFetchFailed;
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showSnackBar(errorMessage, Colors.redAccent);
       setState(() {
-        displayAddress = 'Nie udało się pobrać adresu.';
+        _displayAddress = _addressFetchFailed;
       });
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      _setLoadingState(false);
     }
   }
 
@@ -177,10 +206,9 @@ class _CarListingPageState extends State<CarListingPage> {
   Future<void> _saveListingLocally(CarListing carListing) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> pendingListings = prefs.getStringList('pending_listings') ?? [];
-
     pendingListings.add(json.encode(carListing.toJson()));
     await prefs.setStringList('pending_listings', pendingListings);
-    print('Ogłoszenie zapisane lokalnie: ${carListing.brand}');
+    debugPrint('Ogłoszenie zapisane lokalnie: ${carListing.brand}');
   }
 
   Future<void> _syncPendingListings() async {
@@ -195,113 +223,98 @@ class _CarListingPageState extends State<CarListingPage> {
         await ApiService().createCarListing(carListing);
         pendingListings.remove(listingJson);
         await prefs.setStringList('pending_listings', pendingListings);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ogłoszenie zsynchronizowane pomyślnie!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showSnackBar(_syncSuccess, Colors.green);
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Nie udało się zsynchronizować ogłoszenia. Spróbuj ponownie.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        _showSnackBar(_syncFailed, Colors.redAccent);
+        debugPrint('Błąd synchronizacji ogłoszenia: $e');
         return;
       }
     }
   }
 
-  Future<void> _submit() async {
-    if (_formKey.currentState!.validate() &&
-        latitude != null &&
-        longitude != null &&
-        fuelType != null &&
-        carType != null) {
+  void _setLoadingState(bool loading) {
+    if (mounted) {
       setState(() {
-        isLoading = true;
+        _isLoading = loading;
       });
-      try {
-        final token = await _storage.read(key: 'token');
-        if (token == null) {
-          throw Exception('Brak tokenu. Zaloguj się ponownie.');
-        }
-        final carListing = CarListing(
-          id: widget.listing?.id ?? 0,
-          brand: brandController.text,
-          engineCapacity: double.parse(engineCapacityController.text),
-          fuelType: fuelType!,
-          seats: int.parse(seatsController.text),
-          carType: carType!,
-          features: features,
-          latitude: latitude!,
-          longitude: longitude!,
-          userId: widget.listing?.userId ?? 0,
-          isAvailable: widget.listing?.isAvailable ?? true,
-          isApproved: widget.listing?.isApproved ?? false,
-          rentalPricePerDay: double.parse(rentalPriceController.text),
-          averageRating: widget.listing?.averageRating ?? 0.0,
-        );
-
-        bool isOnline = await _isOnline();
-        if (isOnline) {
-          if (widget.listing == null) {
-            await ApiService().createCarListing(carListing);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Ogłoszenie dodane pomyślnie!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-            await _syncPendingListings();
-          } else {
-            await ApiService().updateCarListing(carListing);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Ogłoszenie zaktualizowane pomyślnie!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-          Navigator.pop(context, true);
-        } else {
-          await _saveListingLocally(carListing);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Ogłoszenie zapisane lokalnie. Zostanie dodane, gdy wrócisz online.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      } catch (e) {
-        String errorMessage;
-        if (e.toString().contains('Brak tokenu')) {
-          errorMessage = 'Musisz się zalogować, aby dodać ogłoszenie.';
-        } else {
-          errorMessage = 'Nie udało się zapisać ogłoszenia. Spróbuj ponownie.';
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      } finally {
-        setState(() {
-          isLoading = false;
-        });
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Proszę wypełnić wszystkie pola i wybrać lokalizację.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
     }
+  }
+
+  CarListing _buildCarListing() {
+    return CarListingBuilder()
+        .setId(widget.listing?.id ?? 0)
+        .setBrand(_brandController.text)
+        .setEngineCapacity(double.parse(_engineCapacityController.text))
+        .setFuelType(_selectedFuelType!)
+        .setSeats(int.parse(_seatsController.text))
+        .setCarType(_selectedCarType!)
+        .setFeatures(_features)
+        .setLatitude(_latitude!)
+        .setLongitude(_longitude!)
+        .setUserId(widget.listing?.userId ?? 0)
+        .setIsAvailable(widget.listing?.isAvailable ?? true)
+        .setRentalPricePerDay(double.parse(_rentalPriceController.text))
+        .setIsApproved(widget.listing?.isApproved ?? false)
+        .setAverageRating(widget.listing?.averageRating ?? 0.0)
+        .build();
+  }
+
+  Future<void> _submit() async {
+    if (!_validateForm()) {
+      _showSnackBar(_fillAllFields, Colors.redAccent);
+      return;
+    }
+
+    _setLoadingState(true);
+
+    try {
+      final token = await _storage.read(key: 'token');
+      if (token == null) {
+        throw Exception(_missingToken);
+      }
+
+      final carListing = _buildCarListing();
+      bool isOnline = await _isOnline();
+
+      if (isOnline) {
+        await _handleOnlineSubmission(carListing);
+      } else {
+        await _handleOfflineSubmission(carListing);
+      }
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      String errorMessage = e.toString().contains(_missingToken) ? _loginRequired : _saveFailed;
+      _showSnackBar(errorMessage, Colors.redAccent);
+      debugPrint('Błąd podczas zapisywania ogłoszenia: $e');
+    } finally {
+      _setLoadingState(false);
+    }
+  }
+
+  bool _validateForm() {
+    return _formKey.currentState!.validate() &&
+        _latitude != null &&
+        _longitude != null &&
+        _selectedFuelType != null &&
+        _selectedCarType != null;
+  }
+
+  Future<void> _handleOnlineSubmission(CarListing carListing) async {
+    if (widget.listing == null) {
+      await ApiService().createCarListing(carListing);
+      _showSnackBar(_listingAddedSuccessfully, Colors.green);
+      await _syncPendingListings();
+    } else {
+      await ApiService().updateCarListing(carListing);
+      _showSnackBar(_listingUpdatedSuccessfully, Colors.green);
+    }
+  }
+
+  Future<void> _handleOfflineSubmission(CarListing carListing) async {
+    await _saveListingLocally(carListing);
+    _showSnackBar(_listingSavedLocally, Colors.orange);
   }
 
   InputDecoration _inputDecoration(String hintText) {
@@ -322,262 +335,282 @@ class _CarListingPageState extends State<CarListingPage> {
   }
 
   @override
-  void dispose() {
-    brandController.dispose();
-    engineCapacityController.dispose();
-    seatsController.dispose();
-    rentalPriceController.dispose();
-    featureController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: widget.listing == null ? "Dodaj ogłoszenie" : "Edytuj ogłoszenie",
+        title: widget.listing == null ? _addListingTitle : _editListingTitle,
         onNotificationPressed: () {
           Navigator.pushNamed(context, '/notifications');
         },
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: brandController,
-                decoration: _inputDecoration('Marka'),
-                validator: (value) => value!.isEmpty ? 'Pole wymagane.' : null,
+      body: _isLoading
+          ? _buildLoadingIndicator()
+          : _buildFormContent(isDarkMode),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return const Center(child: CircularProgressIndicator());
+  }
+
+  Widget _buildFormContent(bool isDarkMode) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildBrandField(isDarkMode),
+            const SizedBox(height: 12),
+            _buildEngineCapacityField(isDarkMode),
+            const SizedBox(height: 12),
+            _buildFuelTypeDropdown(isDarkMode),
+            const SizedBox(height: 12),
+            _buildSeatsField(isDarkMode),
+            const SizedBox(height: 12),
+            _buildCarTypeDropdown(isDarkMode),
+            const SizedBox(height: 12),
+            _buildRentalPriceField(isDarkMode),
+            const SizedBox(height: 12),
+            _buildFeaturesInputSection(isDarkMode),
+            const SizedBox(height: 16),
+            _buildFeaturesChips(isDarkMode),
+            const SizedBox(height: 24),
+            _buildLocationPickerButton(),
+            const SizedBox(height: 16),
+            if (_displayAddress != null) _buildSelectedLocationDisplay(isDarkMode),
+            const SizedBox(height: 16),
+            _buildSubmitButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrandField(bool isDarkMode) {
+    return TextFormField(
+      controller: _brandController,
+      decoration: _inputDecoration(_brandHint),
+      validator: (value) => value!.isEmpty ? _fieldRequired : null,
+      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+    );
+  }
+
+  Widget _buildEngineCapacityField(bool isDarkMode) {
+    return TextFormField(
+      controller: _engineCapacityController,
+      decoration: _inputDecoration(_engineCapacityHint),
+      keyboardType: TextInputType.number,
+      validator: (value) {
+        if (value!.isEmpty) return _fieldRequired;
+        if (double.tryParse(value) == null) return _invalidNumber;
+        if (double.parse(value) <= 0) return 'Pojemność silnika $_valueGreaterThanZero';
+        return null;
+      },
+      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+    );
+  }
+
+  Widget _buildFuelTypeDropdown(bool isDarkMode) {
+    return GestureDetector(
+      onTap: () => _showSelectionDialog(
+          context, _fuelTypeSelectionTitle, _fuelTypes, (selected) {
+        setState(() => _selectedFuelType = selected);
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(_selectedFuelType ?? _fuelTypeHint,
                 style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: engineCapacityController,
-                decoration: _inputDecoration('Pojemność silnika (l)'),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value!.isEmpty) return 'Pole wymagane.';
-                  if (double.tryParse(value) == null) return 'Podaj prawidłową liczbę.';
-                  if (double.parse(value) <= 0)
-                    return 'Pojemność musi być większa od 0.';
-                  return null;
-                },
+                    fontSize: 16, color: isDarkMode ? Colors.white : Colors.black)),
+            Icon(Icons.arrow_drop_down,
+                color: isDarkMode ? Colors.white : Colors.black),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeatsField(bool isDarkMode) {
+    return TextFormField(
+      controller: _seatsController,
+      decoration: _inputDecoration(_seatsHint),
+      keyboardType: TextInputType.number,
+      validator: (value) {
+        if (value!.isEmpty) return _fieldRequired;
+        if (int.tryParse(value) == null) return _invalidNumber;
+        if (int.parse(value) <= 0) return 'Liczba miejsc $_valueGreaterThanZero';
+        return null;
+      },
+      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+    );
+  }
+
+  Widget _buildCarTypeDropdown(bool isDarkMode) {
+    return GestureDetector(
+      onTap: () => _showSelectionDialog(
+          context, _carTypeSelectionTitle, _carTypes, (selected) {
+        setState(() => _selectedCarType = selected);
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isDarkMode ? Colors.grey : Colors.grey[400]!),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(_selectedCarType ?? _carTypeHint,
                 style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
+                    fontSize: 16, color: isDarkMode ? Colors.white : Colors.black)),
+            Icon(Icons.arrow_drop_down,
+                color: isDarkMode ? Colors.white : Colors.black),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRentalPriceField(bool isDarkMode) {
+    return TextFormField(
+      controller: _rentalPriceController,
+      decoration: _inputDecoration(_rentalPriceHint),
+      keyboardType: TextInputType.number,
+      validator: (value) {
+        if (value!.isEmpty) return _fieldRequired;
+        if (double.tryParse(value) == null) return _invalidNumber;
+        if (double.parse(value) <= 0) return 'Cena $_valueGreaterThanZero';
+        return null;
+      },
+      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+    );
+  }
+
+  Widget _buildFeaturesInputSection(bool isDarkMode) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 5),
+          child: Text(_featuresLabel,
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : Colors.black)),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _featureController,
+                decoration: _inputDecoration(_featureHint),
+                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
               ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => _showSelectionDialog(
-                    context, 'Wybierz rodzaj paliwa', fuelTypes,
-                        (selected) {
-                      setState(() => fuelType = selected);
-                    }),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: isDarkMode ? Colors.grey : Colors.grey[400]!),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(fuelType ?? 'Wybierz rodzaj paliwa',
-                          style: TextStyle(
-                              fontSize: 16,
-                              color:
-                              isDarkMode ? Colors.white : Colors.black)),
-                      Icon(Icons.arrow_drop_down,
-                          color: isDarkMode ? Colors.white : Colors.black),
-                    ],
-                  ),
-                ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                if (_featureController.text.isNotEmpty) {
+                  setState(() {
+                    _features.add(_featureController.text);
+                    _featureController.clear();
+                  });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                shape: const CircleBorder(),
+                padding: const EdgeInsets.all(16),
+                backgroundColor: const Color(0xFF375534),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: seatsController,
-                decoration: _inputDecoration('Liczba miejsc'),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value!.isEmpty) return 'Pole wymagane.';
-                  if (int.tryParse(value) == null) return 'Podaj prawidłową liczbę.';
-                  if (int.parse(value) <= 0)
-                    return 'Liczba miejsc musi być większa od 0.';
-                  return null;
-                },
-                style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => _showSelectionDialog(
-                    context, 'Wybierz typ samochodu', carTypes,
-                        (selected) {
-                      setState(() => carType = selected);
-                    }),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: isDarkMode ? Colors.grey : Colors.grey[400]!),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(carType ?? 'Wybierz typ samochodu',
-                          style: TextStyle(
-                              fontSize: 16,
-                              color:
-                              isDarkMode ? Colors.white : Colors.black)),
-                      Icon(Icons.arrow_drop_down,
-                          color: isDarkMode ? Colors.white : Colors.black),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: rentalPriceController,
-                decoration: _inputDecoration('Cena wynajmu za dzień (PLN)'),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value!.isEmpty) return 'Pole wymagane.';
-                  if (double.tryParse(value) == null) return 'Podaj prawidłową liczbę.';
-                  if (double.parse(value) <= 0)
-                    return 'Cena musi być większa od 0.';
-                  return null;
-                },
-                style: TextStyle(
-                    color: isDarkMode ? Colors.white : Colors.black),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.only(left: 5),
-                child: Text('Dodatki:',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : Colors.black)),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: featureController,
-                      decoration: _inputDecoration('Np. Klimatyzacja'),
-                      style: TextStyle(
-                          color: isDarkMode ? Colors.white : Colors.black),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (featureController.text.isNotEmpty) {
-                        setState(() {
-                          features.add(featureController.text);
-                          featureController.clear();
-                        });
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      shape: const CircleBorder(),
-                      padding: const EdgeInsets.all(16),
-                      backgroundColor: const Color(0xFF375534),
-                    ),
-                    child: const Icon(Icons.add, color: Colors.white),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: features.map((feature) {
-                  return Chip(
-                    label: Text(feature,
-                        style: TextStyle(
-                            color: isDarkMode ? Colors.white : Colors.black)),
-                    backgroundColor:
-                    isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
-                    deleteIcon: Icon(Icons.close,
-                        color: isDarkMode ? Colors.white : Colors.black),
-                    onDeleted: () {
-                      setState(() {
-                        features.remove(feature);
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _selectLocation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF375534),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                  child: const Text('Wybierz lokalizację na mapie',
-                      style: TextStyle(color: Colors.white)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (displayAddress != null) ...[
-                Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Wybrana lokalizacja:',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color:
-                              isDarkMode ? Colors.white : Colors.black)),
-                      const SizedBox(height: 8),
-                      Text('Adres: $displayAddress',
-                          style: TextStyle(
-                              color:
-                              isDarkMode ? Colors.white : Colors.black)),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF375534),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                  child: Text(
-                    widget.listing == null
-                        ? 'Dodaj ogłoszenie'
-                        : 'Zapisz zmiany',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeaturesChips(bool isDarkMode) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: _features.map((feature) {
+        return Chip(
+          label: Text(feature,
+              style: TextStyle(color: isDarkMode ? Colors.white : Colors.black)),
+          backgroundColor: isDarkMode ? Colors.grey[900]! : Colors.grey[200]!,
+          deleteIcon: Icon(Icons.close,
+              color: isDarkMode ? Colors.white : Colors.black),
+          onDeleted: () {
+            setState(() {
+              _features.remove(feature);
+            });
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildLocationPickerButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _selectLocation,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF375534),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          textStyle: const TextStyle(fontSize: 18),
+        ),
+        child: const Text(_selectLocationButton,
+            style: TextStyle(color: Colors.white)),
+      ),
+    );
+  }
+
+  Widget _buildSelectedLocationDisplay(bool isDarkMode) {
+    return Padding(
+      padding: const EdgeInsets.all(5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_selectedLocationLabel,
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : Colors.black)),
+          const SizedBox(height: 8),
+          Text('$_addressLabel $_displayAddress',
+              style: TextStyle(color: isDarkMode ? Colors.white : Colors.black)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _submit,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF375534),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          textStyle: const TextStyle(fontSize: 18),
+        ),
+        child: Text(
+          widget.listing == null ? _addListingButton : _saveChangesButton,
+          style: const TextStyle(color: Colors.white),
         ),
       ),
     );

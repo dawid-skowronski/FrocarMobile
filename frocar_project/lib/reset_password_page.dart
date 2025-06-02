@@ -3,6 +3,22 @@ import 'package:provider/provider.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
 
+const String _appBarTitle = "Resetowanie hasła";
+const String _emailLabel = 'Adres e-mail';
+const String _emailEmptyMessage = 'Proszę wpisać adres e-mail.';
+const String _emailInvalidMessage = 'Proszę wpisać poprawny adres e-mail.';
+const String _resetButtonText = 'Wyślij link resetujący';
+const String _resetSuccessMessage = 'Link do resetowania hasła został wysłany na podany adres e-mail.';
+const String _userNotFoundMessage = 'Nie znaleziono użytkownika z podanym adresem e-mail.';
+const String _connectionErrorMessage = 'Połączenie z serwerem nie powiodło się. Sprawdź swoje połączenie internetowe i spróbuj ponownie.';
+const String _invalidEmailFormatMessage = 'Wprowadzony adres e-mail ma nieprawidłowy format.';
+const String _genericErrorMessage = 'Wystąpił błąd podczas wysyłania żądania. Spróbuj ponownie później. Szczegóły:';
+
+const Color _themeColor = Color(0xFF375534);
+const Color _whiteColor = Colors.white;
+const Color _greenColor = Colors.green;
+const Color _redColor = Colors.red;
+
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
 
@@ -18,66 +34,119 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   Future<void> _requestPasswordReset() async {
     final email = _emailController.text.trim();
 
-    if (email.isEmpty) {
-      setState(() {
-        _message = 'Proszę wpisać adres e-mail.';
-      });
+    if (!_validateEmail(email)) {
       return;
     }
 
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      setState(() {
-        _message = 'Proszę wpisać poprawny adres e-mail.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _message = '';
-    });
+    _setLoadingState(true);
 
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
       await apiService.requestPasswordReset(email);
-
-      setState(() {
-        _message = 'Link do resetowania hasła został wysłany na podany adres e-mail.';
-      });
-      _emailController.clear();
+      _handleSuccess();
     } catch (e) {
-      print('DEBUG: Wyjątek w ResetPasswordPage: $e');
-      final errorMsg = e.toString().replaceFirst('Exception: ', '');
-      setState(() {
-        _message = _mapErrorMessage(errorMsg);
-      });
+      _handleError(e.toString());
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      _setLoadingState(false);
     }
+  }
+
+  bool _validateEmail(String email) {
+    if (email.isEmpty) {
+      _setMessage(_emailEmptyMessage);
+      return false;
+    }
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      _setMessage(_emailInvalidMessage);
+      return false;
+    }
+    return true;
+  }
+
+  void _setLoadingState(bool loading) {
+    setState(() {
+      _isLoading = loading;
+      if (loading) _message = '';
+    });
+  }
+
+  void _setMessage(String message) {
+    setState(() {
+      _message = message;
+    });
+  }
+
+  void _handleSuccess() {
+    _setMessage(_resetSuccessMessage);
+    _emailController.clear();
+  }
+
+  void _handleError(String rawError) {
+    final errorMsg = rawError.replaceFirst('Exception: ', '');
+    _setMessage(_mapErrorMessage(errorMsg));
   }
 
   String _mapErrorMessage(String rawMessage) {
     if (rawMessage.contains('404') || rawMessage.toLowerCase().contains('nie znaleziono użytkownika') || rawMessage.toLowerCase().contains('user not found')) {
-      return 'Nie znaleziono użytkownika z podanym adresem e-mail.';
+      return _userNotFoundMessage;
     }
-    else if (rawMessage.contains('timeout') || rawMessage.contains('SocketException') || rawMessage.contains('Failed host lookup')) {
-      return 'Połączenie z serwerem nie powiodło się. Sprawdź swoje połączenie internetowe i spróbuj ponownie.';
+    if (rawMessage.contains('timeout') || rawMessage.contains('SocketException') || rawMessage.contains('Failed host lookup')) {
+      return _connectionErrorMessage;
     }
-    else if (rawMessage.toLowerCase().contains('nieprawidłowy format adresu e-mail') || rawMessage.toLowerCase().contains('invalid email format')) {
-      return 'Wprowadzony adres e-mail ma nieprawidłowy format.';
+    if (rawMessage.toLowerCase().contains('nieprawidłowy format adresu e-mail') || rawMessage.toLowerCase().contains('invalid email format')) {
+      return _invalidEmailFormatMessage;
     }
-    else {
-      return 'Wystąpił błąd podczas wysyłania żądania. Spróbuj ponownie później. Szczegóły: $rawMessage';
-    }
+    return '$_genericErrorMessage $rawMessage';
+  }
+
+  Widget _buildEmailTextField() {
+    return TextField(
+      controller: _emailController,
+      decoration: const InputDecoration(
+        labelText: _emailLabel,
+        border: OutlineInputBorder(),
+      ),
+      keyboardType: TextInputType.emailAddress,
+    );
+  }
+
+  Widget _buildResetButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _requestPasswordReset,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _themeColor,
+          foregroundColor: _whiteColor,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: _isLoading
+            ? const CircularProgressIndicator(color: _whiteColor)
+            : const Text(_resetButtonText, style: TextStyle(fontSize: 16)),
+      ),
+    );
+  }
+
+  Widget _buildMessageDisplay() {
+    if (_message.isEmpty) return const SizedBox.shrink();
+    return Text(
+      _message,
+      style: TextStyle(
+        color: _message.contains('wysłany') ? _greenColor : _redColor,
+        fontSize: 14,
+      ),
+      textAlign: TextAlign.center,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar(
-        title: "Resetowanie hasła",
+        title: _appBarTitle,
         onNotificationPressed: () {
           Navigator.pushNamed(context, '/notifications');
         },
@@ -87,42 +156,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'Adres e-mail',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
+            _buildEmailTextField(),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _requestPasswordReset,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF375534),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Wyślij link resetujący', style: TextStyle(fontSize: 16)),
-              ),
-            ),
+            _buildResetButton(),
             const SizedBox(height: 20),
-            if (_message.isNotEmpty)
-              Text(
-                _message,
-                style: TextStyle(
-                  color: _message.contains('wysłany') ? Colors.green : Colors.red,
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-              ),
+            _buildMessageDisplay(),
           ],
         ),
       ),

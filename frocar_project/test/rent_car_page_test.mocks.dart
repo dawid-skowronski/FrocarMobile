@@ -7,6 +7,7 @@ import 'dart:async' as _i5;
 
 import 'package:flutter/foundation.dart' as _i10;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i2;
+import 'package:geolocator/geolocator.dart' as _i11;
 import 'package:mockito/mockito.dart' as _i1;
 import 'package:mockito/src/dummies.dart' as _i4;
 import 'package:test_project/models/car_listing.dart' as _i6;
@@ -545,4 +546,13 @@ class MockFlutterSecureStorage extends _i1.Mock
             returnValue: _i5.Future<bool?>.value(),
           )
           as _i5.Future<bool?>);
+}
+
+/// A class which mocks [Geolocator].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockGeolocator extends _i1.Mock implements _i11.Geolocator {
+  MockGeolocator() {
+    _i1.throwOnMissingStub(this);
+  }
 }

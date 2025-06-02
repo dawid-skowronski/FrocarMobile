@@ -6,6 +6,20 @@ import 'package:test_project/providers/theme_provider.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:test_project/login.dart';
 
+const String _appBarTitle = 'Profil';
+const String _currentUsernameLabel = 'Aktualna nazwa użytkownika:';
+const String _newUsernameLabel = 'Nowa nazwa użytkownika';
+const String _saveChangesButtonText = 'Zapisz zmiany';
+const String _usernameRequiredMessage = 'Nazwa użytkownika jest wymagana';
+const String _usernameMinLengthMessage = 'Nazwa musi mieć co najmniej 3 znaki';
+const String _usernameChangedSuccess = 'Nazwa użytkownika została zmieniona. Zaloguj się ponownie.';
+const String _usernameExistsError = 'Taka nazwa użytkownika już istnieje. Wybierz inną.';
+const String _sessionExpiredError = 'Sesja wygasła. Zaloguj się ponownie.';
+const String _connectionError = 'Brak połączenia z serwerem. Sprawdź połączenie internetowe.';
+const String _genericUpdateError = 'Wystąpił błąd podczas zmiany nazwy użytkownika.';
+const String _unknownUser = 'Nieznany użytkownik';
+const Color _themeColor = Color(0xFF375534);
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
 
@@ -15,72 +29,92 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
-  final usernameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   late FlutterSecureStorage _storage;
   late ApiService _apiService;
-  bool isLoading = false;
-  String? currentUsername;
-  bool _dependenciesLoaded = false;
+  bool _isLoading = false;
+  String? _currentUsername;
+  bool _dependenciesInitialized = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_dependenciesLoaded) {
+    if (!_dependenciesInitialized) {
       _storage = Provider.of<FlutterSecureStorage>(context, listen: false);
       _apiService = Provider.of<ApiService>(context, listen: false);
       _loadCurrentUsername();
-      _dependenciesLoaded = true;
+      _dependenciesInitialized = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  void _setLoadingState(bool loading) {
+    if (mounted) {
+      setState(() {
+        _isLoading = loading;
+      });
+    }
+  }
+
+  void _setCurrentUsername(String username) {
+    if (mounted) {
+      setState(() {
+        _currentUsername = username;
+        _usernameController.text = username;
+      });
+    }
+  }
+
+  void _showSnackBar(String message, Color backgroundColor) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: backgroundColor,
+        ),
+      );
     }
   }
 
   Future<void> _loadCurrentUsername() async {
     final username = await _storage.read(key: 'username');
-    setState(() {
-      currentUsername = username ?? 'Nieznany użytkownik';
-      usernameController.text = currentUsername!;
-    });
+    _setCurrentUsername(username ?? _unknownUser);
   }
 
   Future<void> _updateUsername() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-    setState(() => isLoading = true);
+    _setLoadingState(true);
 
     try {
-      await _apiService.changeUsername(usernameController.text);
-
+      await _apiService.changeUsername(_usernameController.text);
       await _storage.delete(key: 'token');
       await _storage.delete(key: 'username');
 
-      if (!mounted) return;
+      _showSnackBar(_usernameChangedSuccess, Colors.green);
+      _navigateToLogin();
+    } catch (e) {
+      final errorMsg = _mapErrorMessage(e.toString());
+      _showSnackBar(errorMsg, Colors.redAccent);
+    } finally {
+      _setLoadingState(false);
+    }
+  }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nazwa użytkownika została zmieniona. Zaloguj się ponownie.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
+  void _navigateToLogin() {
+    if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
             (_) => false,
       );
-    } catch (e) {
-      final errorMsg = _mapErrorMessage(e.toString());
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMsg),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
     }
   }
 
@@ -88,20 +122,14 @@ class _ProfilePageState extends State<ProfilePage> {
     final message = raw.replaceFirst('Exception: ', '').toLowerCase();
 
     if (message.contains('username already exists')) {
-      return 'Taka nazwa użytkownika już istnieje. Wybierz inną.';
+      return _usernameExistsError;
     } else if (message.contains('unauthorized')) {
-      return 'Sesja wygasła. Zaloguj się ponownie.';
+      return _sessionExpiredError;
     } else if (message.contains('timeout') || message.contains('network')) {
-      return 'Brak połączenia z serwerem. Sprawdź połączenie internetowe.';
+      return _connectionError;
     } else {
-      return 'Wystąpił błąd podczas zmiany nazwy użytkownika.';
+      return _genericUpdateError;
     }
-  }
-
-  @override
-  void dispose() {
-    usernameController.dispose();
-    super.dispose();
   }
 
   @override
@@ -111,66 +139,86 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: 'Profil',
+        title: _appBarTitle,
         onNotificationPressed: () {
           Navigator.pushNamed(context, '/notifications');
         },
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Aktualna nazwa użytkownika: $currentUsername',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: isDarkMode ? Colors.white : Colors.black,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nowa nazwa użytkownika',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Nazwa użytkownika jest wymagana';
-                  }
-                  if (value.length < 3) {
-                    return 'Nazwa musi mieć co najmniej 3 znaki';
-                  }
-                  return null;
-                },
-                style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _updateUsername,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF375534),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                  ),
-                  child: const Text(
-                    'Zapisz zmiany',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ),
-              ),
-            ],
+      body: _isLoading
+          ? _buildLoadingIndicator()
+          : _buildProfileContent(isDarkMode),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return const Center(child: CircularProgressIndicator());
+  }
+
+  Widget _buildProfileContent(bool isDarkMode) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCurrentUsernameDisplay(isDarkMode),
+            const SizedBox(height: 16),
+            _buildNewUsernameField(isDarkMode),
+            const SizedBox(height: 24),
+            _buildSaveChangesButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrentUsernameDisplay(bool isDarkMode) {
+    return Text(
+      '$_currentUsernameLabel ${_currentUsername ?? _unknownUser}',
+      style: TextStyle(
+        fontSize: 16,
+        color: isDarkMode ? Colors.white : Colors.black,
+      ),
+    );
+  }
+
+  Widget _buildNewUsernameField(bool isDarkMode) {
+    return TextFormField(
+      controller: _usernameController,
+      decoration: const InputDecoration(
+        labelText: _newUsernameLabel,
+        border: OutlineInputBorder(),
+      ),
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return _usernameRequiredMessage;
+        }
+        if (value.length < 3) {
+          return _usernameMinLengthMessage;
+        }
+        return null;
+      },
+      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+    );
+  }
+
+  Widget _buildSaveChangesButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _updateUsername,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _themeColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+        ),
+        child: const Text(
+          _saveChangesButtonText,
+          style: TextStyle(fontSize: 18),
         ),
       ),
     );

@@ -31,6 +31,7 @@ dependencies:
   google_maps_flutter: ^2.9.0
   geocoding: ^3.0.0
   geolocator: ^13.0.2
+  geolocator_platform_interface: ^4.2.4
   flutter_dotenv: ^5.0.2
   google_maps_webservice: ^0.0.20-nullsafety.5
   jwt_decoder: ^2.0.1

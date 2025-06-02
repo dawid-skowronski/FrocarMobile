@@ -1,19 +1,72 @@
-import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:flutter/services.dart';
-import 'package:test_project/services/api_service.dart';
-import '../models/car_listing.dart';
-import '../models/car_rental.dart';
-import 'package:test_project/widgets/custom_app_bar.dart';
-import 'package:provider/provider.dart';
-import '../providers/theme_provider.dart';
-import 'car_listing_detail_page.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import '../models/car_rental_review.dart';
-import 'add_review_page.dart';
+import 'package:intl/intl.dart';
+
+import 'package:test_project/services/api_service.dart';
+import 'package:test_project/models/car_listing.dart';
+import 'package:test_project/models/car_rental.dart';
+import 'package:test_project/models/car_rental_review.dart';
+import 'package:test_project/widgets/custom_app_bar.dart';
+import 'package:test_project/providers/theme_provider.dart';
+import 'package:test_project/filters/filter_strategy.dart';
+import 'package:test_project/add_review_page.dart';
+import 'package:test_project/car_listing_detail_page.dart';
+
+const String _appBarTitle = "Wypożycz auto";
+const String _rentedCarsButtonText = "Moje wypożyczenia";
+const String _filterButtonText = "Filtry";
+const String _locationServiceDisabled = 'Usługi lokalizacji są wyłączone.';
+const String _locationPermissionDenied = 'Pozwolenie na lokalizację odrzucone.';
+const String _locationPermissionDeniedForever = 'Pozwolenie na lokalizację permanentnie odrzucone.';
+const String _locationFetchError = 'Błąd pobierania lokalizacji:';
+const String _jwtTokenError = 'Nieprawidłowy token JWT';
+const String _userIdLoadError = 'Błąd ładowania ID użytkownika:';
+const String _listingsLoadError = 'Brak dostępnych aut do wypożyczenia:';
+const String _noListingsMatchingCriteria = 'Brak dostępnych aut spełniających kryteria';
+const String _rentalsLoadError = 'Błąd ładowania wypożyczeń:';
+const String _mapStyleLoadError = 'Błąd ładowania stylu mapy:';
+const String _okButtonText = 'OK';
+
+const String _showEndedRentalsSwitchText = 'Pokaż zakończone wypożyczenia';
+const String _noEndedRentals = 'Brak zakończonych wypożyczeń';
+const String _noActiveRentals = 'Brak aktywnych wypożyczeń';
+const String _rentalDatesLabel = 'Od: %s Do: %s';
+const String _rentalPriceLabel = 'Cena wypożyczenia: %s PLN';
+const String _daysRemainingLabel = 'Dni do końca wypożyczenia: %s';
+const String _addReviewButtonText = 'Dodaj opinię';
+const String _rentalStatusActive = 'Aktywne';
+const String _rentalStatusEnded = 'Zakończone';
+
+const String _filterTitle = 'Filtry wyszukiwania';
+const String _brandFilterLabel = 'Marka';
+const String _minSeatsLabel = 'Min. miejsc';
+const String _maxSeatsLabel = 'Maks. miejsc';
+const String _fuelTypeLabel = 'Typ paliwa';
+const String _minPriceLabel = 'Min. cena (PLN)';
+const String _maxPriceLabel = 'Maks. cena (PLN)';
+const String _carTypeLabel = 'Typ samochodu';
+const String _locationLabel = 'Lokalizacja';
+const String _cityHint = 'Miasto (np. Warszawa)';
+const String _radiusLabel = 'Promień (km)';
+const String _cancelButtonText = 'Anuluj';
+const String _applyFiltersButtonText = 'Zastosuj';
+const String _clearFiltersButtonText = 'Wyczyść';
+const String _geocodingError = 'Błąd podczas wyszukiwania miasta:';
+const String _cityNotFound = 'Nie znaleziono podanego miasta.';
+const String _searchingLocationText = 'Szukam lokalizacji...';
+
+const Color _themeColor = Color(0xFF375534);
+const Color _amberColor = Colors.amber;
+const Color _redColor = Colors.red;
+const Color _greenColor = Colors.green;
+const Color _greyColor = Colors.grey;
 
 class RentCarPage extends StatefulWidget {
   const RentCarPage({super.key});
@@ -23,15 +76,20 @@ class RentCarPage extends StatefulWidget {
 }
 
 class _RentCarPageState extends State<RentCarPage> {
-  GoogleMapController? _controller;
+  GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
   List<CarListing> _carListings = [];
   List<CarRental> _userRentals = [];
-  LatLng _center = const LatLng(52.2296756, 21.0122287); // Domyślnie Warszawa
+  LatLng _center = const LatLng(52.2296756, 21.0122287);
   double _currentZoom = 11.0;
   static const double _zoomThreshold = 14.0;
   int? _currentUserId;
   bool _isShowingInfoWindows = false;
+  bool _showEndedRentals = false;
+
+  bool _isLocationLoading = false;
+  bool _isListingsLoading = false;
+  bool _isRentalsLoading = false;
 
   String? _filterBrand;
   int? _minSeats;
@@ -43,6 +101,7 @@ class _RentCarPageState extends State<RentCarPage> {
   String? _filterCity;
   double? _filterRadius;
   LatLng? _filterCityCoordinates;
+  List<FilterStrategy> _filterStrategies = [];
 
   final List<String> _availableFuelTypes = [
     'Benzyna',
@@ -70,41 +129,106 @@ class _RentCarPageState extends State<RentCarPage> {
     'Targa'
   ];
 
+  ThemeMode? _currentThemeMode;
+
+  void _showSnackBar(String message, Color backgroundColor) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: backgroundColor,
+        ),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation(); // Pobierz lokalizację użytkownika
-    _loadCurrentUserId().then((_) {
-      _loadCarListings();
-      _loadUserRentals();
+    _initializePageData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    if (_currentThemeMode == null || _currentThemeMode != themeProvider.themeMode) {
+      _currentThemeMode = themeProvider.themeMode;
+      _setMapStyle();
+    }
+  }
+
+  Future<void> _initializePageData() async {
+    setState(() {
+      _isLocationLoading = true;
+      _isListingsLoading = true;
+      _isRentalsLoading = true;
+    });
+
+    try {
+      await _getCurrentLocation();
+    } finally {
+      setState(() {
+        _isLocationLoading = false;
+      });
+    }
+
+    await _loadCurrentUserId();
+    _updateFilterStrategies();
+
+    try {
+      await _loadCarListings();
+    } finally {
+      setState(() {
+        _isListingsLoading = false;
+      });
+    }
+
+    try {
+      await _loadUserRentals();
+    } finally {
+      setState(() {
+        _isRentalsLoading = false;
+      });
+    }
+  }
+
+  void _updateFilterStrategies() {
+    setState(() {
+      _filterStrategies = [
+        UserAndAvailabilityFilterStrategy(_currentUserId),
+        BrandFilterStrategy(_filterBrand),
+        SeatsFilterStrategy(_minSeats, _maxSeats),
+        FuelTypeFilterStrategy(_filterFuelTypes),
+        PriceFilterStrategy(_minPrice, _maxPrice),
+        CarTypeFilterStrategy(_filterCarTypes),
+        LocationFilterStrategy(_filterCityCoordinates, _filterRadius),
+      ];
     });
   }
 
   Future<void> _getCurrentLocation() async {
     try {
-      // Sprawdź, czy usługi lokalizacji są włączone
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        print('Usługi lokalizacji są wyłączone.');
+        debugPrint(_locationServiceDisabled);
         return;
       }
 
-      // Sprawdź pozwolenia
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          print('Pozwolenie na lokalizację odrzucone.');
+          debugPrint(_locationPermissionDenied);
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        print('Pozwolenie na lokalizację permanentnie odrzucone.');
+        debugPrint(_locationPermissionDeniedForever);
         return;
       }
 
-      // Pobierz bieżącą lokalizację
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -113,15 +237,13 @@ class _RentCarPageState extends State<RentCarPage> {
         _center = LatLng(position.latitude, position.longitude);
       });
 
-      // Przesuń kamerę na bieżącą lokalizację
-      if (_controller != null) {
-        _controller!.animateCamera(
+      if (_mapController != null) {
+        _mapController!.animateCamera(
           CameraUpdate.newLatLng(_center),
         );
       }
     } catch (e) {
-      print('Błąd pobierania lokalizacji: $e');
-      // Użyj domyślnej pozycji (Warszawa) w przypadku błędu
+      debugPrint('$_locationFetchError $e');
     }
   }
 
@@ -132,17 +254,16 @@ class _RentCarPageState extends State<RentCarPage> {
       try {
         final parts = token.split('.');
         if (parts.length != 3) {
-          throw Exception('Nieprawidłowy token JWT');
+          throw Exception(_jwtTokenError);
         }
         final payload = parts[1];
-        final decodedPayload =
-        utf8.decode(base64.decode(base64.normalize(payload)));
+        final decodedPayload = utf8.decode(base64.decode(base64.normalize(payload)));
         final decoded = jsonDecode(decodedPayload) as Map<String, dynamic>;
         _currentUserId = int.parse(decoded[
         'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ??
             '0');
       } catch (e) {
-        print('Błąd ładowania ID użytkownika: $e');
+        debugPrint('$_userIdLoadError $e');
         _currentUserId = null;
       }
     } else {
@@ -156,54 +277,12 @@ class _RentCarPageState extends State<RentCarPage> {
       final carListings = await apiService.getCarListings();
       setState(() {
         _carListings = carListings.where((listing) {
-          bool matches = listing.userId != _currentUserId && listing.isAvailable;
-
-          if (_filterBrand != null && _filterBrand!.isNotEmpty) {
-            matches = matches &&
-                listing.brand.toLowerCase().contains(_filterBrand!.toLowerCase());
-          }
-
-          if (_minSeats != null) {
-            matches = matches && listing.seats >= _minSeats!;
-          }
-          if (_maxSeats != null) {
-            matches = matches && listing.seats <= _maxSeats!;
-          }
-
-          if (_filterFuelTypes.isNotEmpty) {
-            matches = matches && _filterFuelTypes.contains(listing.fuelType);
-          }
-
-          if (_minPrice != null) {
-            matches = matches && listing.rentalPricePerDay >= _minPrice!;
-          }
-          if (_maxPrice != null) {
-            matches = matches && listing.rentalPricePerDay <= _maxPrice!;
-          }
-
-          if (_filterCarTypes.isNotEmpty) {
-            final lowerCaseCarTypes =
-            _filterCarTypes.map((type) => type.toLowerCase()).toList();
-            matches =
-                matches && lowerCaseCarTypes.contains(listing.carType.toLowerCase());
-          }
-
-          if (_filterCityCoordinates != null && _filterRadius != null) {
-            final distance = Geolocator.distanceBetween(
-              _filterCityCoordinates!.latitude,
-              _filterCityCoordinates!.longitude,
-              listing.latitude,
-              listing.longitude,
-            ) / 1000;
-            matches = matches && distance <= _filterRadius!;
-          }
-
-          return matches;
+          return _filterStrategies.every((strategy) => strategy.apply(listing));
         }).toList();
-        print('Załadowano ${_carListings.length} listingów');
+        debugPrint('Załadowano ${_carListings.length} listingów');
         _updateMarkers();
         if (_carListings.isEmpty) {
-          _showErrorDialog('Brak dostępnych aut spełniających kryteria');
+          _showErrorDialog(_noListingsMatchingCriteria);
         }
       });
     } catch (e) {
@@ -212,7 +291,7 @@ class _RentCarPageState extends State<RentCarPage> {
         _updateMarkers();
       });
       _showErrorDialog(
-          'Brak dostępnych aut do wypożyczenia: ${e.toString().replaceFirst('Exception: ', '')}');
+          '$_listingsLoadError ${e.toString().replaceFirst('Exception: ', '')}');
     }
   }
 
@@ -222,10 +301,10 @@ class _RentCarPageState extends State<RentCarPage> {
       final rentals = await apiService.getUserCarRentals();
       setState(() {
         _userRentals = rentals;
-        print('Załadowano ${_userRentals.length} wypożyczeń');
+        debugPrint('Załadowano ${_userRentals.length} wypożyczeń');
       });
     } catch (e) {
-      print('Błąd ładowania wypożyczeń: $e');
+      debugPrint('$_rentalsLoadError $e');
     }
   }
 
@@ -240,7 +319,7 @@ class _RentCarPageState extends State<RentCarPage> {
           title: const Icon(
             Icons.directions_car,
             size: 48,
-            color: Colors.grey,
+            color: _greyColor,
           ),
           content: Text(
             message,
@@ -248,7 +327,7 @@ class _RentCarPageState extends State<RentCarPage> {
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.grey,
+              color: _greyColor,
             ),
           ),
           actions: [
@@ -258,12 +337,12 @@ class _RentCarPageState extends State<RentCarPage> {
                   Navigator.of(context).pop();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF375534),
+                  backgroundColor: _themeColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                 ),
                 child: const Text(
-                  'OK',
+                  _okButtonText,
                   style: TextStyle(fontSize: 16),
                 ),
               ),
@@ -282,11 +361,11 @@ class _RentCarPageState extends State<RentCarPage> {
 
     _markers.clear();
     for (var listing in _carListings) {
-      print(
+      debugPrint(
           'Dodaję marker dla ${listing.brand}, ID: ${listing.id}, współrzędne: (${listing.latitude}, ${listing.longitude})');
 
       if (listing.latitude.isNaN || listing.longitude.isNaN) {
-        print('Błąd: Nieprawidłowe współrzędne dla markera ${listing.id}');
+        debugPrint('Błąd: Nieprawidłowe współrzędne dla markera ${listing.id}');
         continue;
       }
 
@@ -299,25 +378,30 @@ class _RentCarPageState extends State<RentCarPage> {
           title: listing.brand.isNotEmpty ? listing.brand : 'Brak marki',
           snippet: 'Cena: ${listing.rentalPricePerDay.toStringAsFixed(2)} PLN/dzień',
         ),
-        onTap: () {
-          print('Przekierowuję do szczegółów listingu ${listing.id}');
-          Navigator.push(
+        onTap: () async {
+          debugPrint('Przekierowuję do szczegółów listingu ${listing.id}');
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => CarListingDetailPage(listing: listing),
             ),
           );
+          if (result == true) {
+            debugPrint('Wynajem zakończony, odświeżam dane w RentCarPage');
+            await _loadCarListings();
+            await _loadUserRentals();
+          }
         },
       ));
     }
 
     setState(() {
-      print('Zaktualizowano markery, liczba markerów: ${_markers.length}');
+      debugPrint('Zaktualizowano markery, liczba markerów: ${_markers.length}');
     });
   }
 
   Future<void> _setMapStyle() async {
-    if (_controller == null) return;
+    if (_mapController == null) return;
 
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final stylePath = themeProvider.isDarkMode
@@ -326,16 +410,16 @@ class _RentCarPageState extends State<RentCarPage> {
 
     try {
       String style = await rootBundle.loadString(stylePath);
-      _controller!.setMapStyle(style);
+      _mapController!.setMapStyle(style);
     } catch (e) {
-      print('Błąd ładowania stylu mapy: $e');
+      debugPrint('$_mapStyleLoadError $e');
     }
   }
 
   void _onCameraMove(CameraPosition position) {
     setState(() {
       _currentZoom = position.zoom;
-      print('Zmiana zoomu: $_currentZoom');
+      debugPrint('Zmiana zoomu: $_currentZoom');
     });
 
     bool shouldShowInfoWindows = _currentZoom >= _zoomThreshold;
@@ -349,21 +433,21 @@ class _RentCarPageState extends State<RentCarPage> {
   }
 
   Future<void> _showAllInfoWindows() async {
-    if (_controller == null) return;
+    if (_mapController == null) return;
 
-    final bounds = await _controller!.getVisibleRegion();
-    print('Widoczny obszar mapy: $bounds');
+    final bounds = await _mapController!.getVisibleRegion();
+    debugPrint('Widoczny obszar mapy: $bounds');
 
     Future.delayed(const Duration(milliseconds: 500), () {
       for (var marker in _markers) {
         bool isVisible = bounds.contains(marker.position);
         if (isVisible) {
-          _controller!.showMarkerInfoWindow(marker.markerId);
-          print(
+          _mapController!.showMarkerInfoWindow(marker.markerId);
+          debugPrint(
               'Pokazuję InfoWindow dla markera ${marker.markerId} na pozycji ${marker.position}');
         } else {
-          _controller!.hideMarkerInfoWindow(marker.markerId);
-          print(
+          _mapController!.hideMarkerInfoWindow(marker.markerId);
+          debugPrint(
               'Ukrywam InfoWindow dla markera ${marker.markerId}, bo jest poza widocznym obszarem');
         }
       }
@@ -371,10 +455,10 @@ class _RentCarPageState extends State<RentCarPage> {
   }
 
   void _hideAllInfoWindows() {
-    if (_controller == null) return;
+    if (_mapController == null) return;
     for (var marker in _markers) {
-      _controller!.hideMarkerInfoWindow(marker.markerId);
-      print('Ukrywam InfoWindow dla markera ${marker.markerId}');
+      _mapController!.hideMarkerInfoWindow(marker.markerId);
+      debugPrint('Ukrywam InfoWindow dla markera ${marker.markerId}');
     }
   }
 
@@ -392,241 +476,25 @@ class _RentCarPageState extends State<RentCarPage> {
   }
 
   void _showRentedCarsBottomSheet() {
-    bool showEndedRentals = false;
-
     showModalBottomSheet(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             final filteredRentals = _userRentals.where((rental) {
-              print(
-                  'Filtruję rental: ${rental.rentalStatus}, showEndedRentals: $showEndedRentals');
-              return showEndedRentals || rental.rentalStatus != 'Zakończone';
+              debugPrint(
+                  'Filtruję rental: ${rental.rentalStatus}, showEndedRentals: $_showEndedRentals');
+              return _showEndedRentals || rental.rentalStatus != _rentalStatusEnded;
             }).toList();
 
             return Theme(
               data: Theme.of(context).copyWith(
-                dividerColor: Colors.transparent,
+                dividerTheme: const DividerThemeData(color: Colors.transparent),
               ),
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Pokaż zakończone wypożyczenia',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Switch(
-                          value: showEndedRentals,
-                          onChanged: (value) {
-                            setModalState(() {
-                              showEndedRentals = value;
-                            });
-                          },
-                          activeColor: const Color(0xFF375534),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: filteredRentals.isEmpty
-                        ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.directions_car,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            showEndedRentals
-                                ? 'Brak zakończonych wypożyczeń'
-                                : 'Brak aktualnie wypożyczonych aut',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    )
-                        : ListView.builder(
-                      itemCount: filteredRentals.length,
-                      itemBuilder: (context, index) {
-                        final rental = filteredRentals[index];
-                        return FutureBuilder<List<CarRentalReview>>(
-                          future: Provider.of<ApiService>(context, listen: false)
-                              .getReviewsForListing(rental.carListingId),
-                          builder: (context, reviewSnapshot) {
-                            bool canAddReview = false;
-                            if (reviewSnapshot.hasData) {
-                              final reviews = reviewSnapshot.data!;
-                              canAddReview = !reviews.any((review) =>
-                              review.carRentalId == rental.carRentalId);
-                            }
-
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                  horizontal: 16.0, vertical: 8.0),
-                              elevation: 4,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ExpansionTile(
-                                key: Key(index.toString()),
-                                initiallyExpanded: false,
-                                leading: const Icon(
-                                  Icons.directions_car,
-                                  color: Color(0xFF375534),
-                                ),
-                                title: Text(
-                                  rental.carListing.brand,
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Od: ${rental.rentalStartDate.toString().substring(0, 10)} Do: ${rental.rentalEndDate.toString().substring(0, 10)}',
-                                  style: const TextStyle(
-                                      fontSize: 14, color: Colors.grey),
-                                ),
-                                trailing: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: rental.rentalStatus == 'Aktywne'
-                                        ? Colors.green.withOpacity(0.1)
-                                        : Colors.grey.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    rental.rentalStatus,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: rental.rentalStatus == 'Aktywne'
-                                          ? Colors.green
-                                          : Colors.grey[600],
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0, vertical: 8.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.monetization_on,
-                                              color: Color(0xFF375534),
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                'Cena wypożyczenia: ${_calculateTotalPrice(rental).toStringAsFixed(2)} PLN',
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.timer,
-                                              color: Color(0xFF375534),
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                'Dni do końca wypożyczenia: ${_calculateDaysUntilEnd(rental)}',
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (rental.rentalStatus == 'Zakończone' &&
-                                            canAddReview) ...[
-                                          const SizedBox(height: 16),
-                                          Center(
-                                            child: ElevatedButton(
-                                              onPressed: () {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        AddReviewPage(
-                                                          carRentalId:
-                                                          rental.carRentalId,
-                                                          carListingId:
-                                                          rental.carListingId,
-                                                        ),
-                                                  ),
-                                                ).then((_) {
-                                                  _loadUserRentals();
-                                                  setModalState(() {});
-                                                });
-                                              },
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                const Color(0xFF375534),
-                                                padding: const EdgeInsets
-                                                    .symmetric(
-                                                    horizontal: 32,
-                                                    vertical: 12),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                  BorderRadius.circular(
-                                                      12),
-                                                ),
-                                              ),
-                                              child: const Text(
-                                                'Dodaj opinię',
-                                                style: TextStyle(
-                                                    fontSize: 16,
-                                                    color: Colors.white),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                  _buildShowEndedRentalsSwitch(setModalState),
+                  _buildRentedRentalsList(filteredRentals, _showEndedRentals, setModalState),
                 ],
               ),
             );
@@ -635,6 +503,233 @@ class _RentCarPageState extends State<RentCarPage> {
       },
     );
   }
+
+  Widget _buildShowEndedRentalsSwitch(StateSetter setModalState) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            _showEndedRentalsSwitchText,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Switch(
+            value: _showEndedRentals,
+            onChanged: (value) {
+              setState(() {
+                _showEndedRentals = value;
+              });
+              setModalState(() {});
+            },
+            activeColor: _themeColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRentedRentalsList(List<CarRental> filteredRentals, bool showEndedRentals, StateSetter setModalState) {
+    if (_isRentalsLoading) {
+      return const Expanded(
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    } else if (filteredRentals.isEmpty) {
+      return _buildNoRentalsMessage(showEndedRentals);
+    } else {
+      return Expanded(
+        child: ListView.builder(
+          itemCount: filteredRentals.length,
+          itemBuilder: (context, index) {
+            final rental = filteredRentals[index];
+            return _buildRentalCard(rental, setModalState);
+          },
+        ),
+      );
+    }
+  }
+
+  Widget _buildNoRentalsMessage(bool showEndedRentals) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.directions_car,
+            size: 48,
+            color: _greyColor,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            showEndedRentals ? _noEndedRentals : _noActiveRentals,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _greyColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRentalCard(CarRental rental, StateSetter setModalState) {
+    return FutureBuilder<List<CarRentalReview>>(
+      future: Provider.of<ApiService>(context, listen: false)
+          .getReviewsForListing(rental.carListingId),
+      builder: (context, reviewSnapshot) {
+        bool canAddReview = false;
+        if (reviewSnapshot.hasData) {
+          final reviews = reviewSnapshot.data!;
+          canAddReview =
+          !reviews.any((review) => review.carRentalId == rental.carRentalId);
+        }
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ExpansionTile(
+            key: Key(rental.carRentalId.toString()),
+            initiallyExpanded: false,
+            leading: const Icon(
+              Icons.directions_car,
+              color: _themeColor,
+            ),
+            title: Text(
+              rental.carListing.brand,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Text(
+              _rentalDatesLabel
+                  .replaceAll('%s', rental.rentalStartDate.toString().substring(0, 10))
+                  .replaceAll('%s', rental.rentalEndDate.toString().substring(0, 10)),
+              style: const TextStyle(fontSize: 14, color: _greyColor),
+            ),
+            trailing: _buildRentalStatusChip(rental.rentalStatus),
+            children: [
+              _buildRentalDetails(rental, canAddReview, setModalState),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRentalStatusChip(String status) {
+    Color color = _greyColor;
+    if (status == _rentalStatusActive) {
+      color = _greenColor;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          fontSize: 14,
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRentalDetails(CarRental rental, bool canAddReview, StateSetter setModalState) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildDetailRow(
+            Icons.monetization_on,
+            _rentalPriceLabel
+                .replaceAll('%s', _calculateTotalPrice(rental).toStringAsFixed(2)),
+          ),
+          const SizedBox(height: 12),
+          _buildDetailRow(
+            Icons.timer,
+            _daysRemainingLabel
+                .replaceAll('%s', _calculateDaysUntilEnd(rental).toString()),
+          ),
+          if (rental.rentalStatus == _rentalStatusEnded && canAddReview) ...[
+            const SizedBox(height: 16),
+            _buildAddReviewButton(rental, setModalState),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: _themeColor,
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _greyColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAddReviewButton(CarRental rental, StateSetter setModalState) {
+    return Center(
+      child: ElevatedButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AddReviewPage(
+                carRentalId: rental.carRentalId,
+                carListingId: rental.carListingId,
+              ),
+            ),
+          ).then((_) {
+            _loadUserRentals();
+            setModalState(() {});
+          });
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _themeColor,
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: const Text(
+          _addReviewButtonText,
+          style: TextStyle(fontSize: 16, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
 
   void _showFilterBottomSheet() {
     final brandController = TextEditingController(text: _filterBrand ?? '');
@@ -669,251 +764,25 @@ class _RentCarPageState extends State<RentCarPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Filtry wyszukiwania',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF375534),
-                      ),
+                    _buildFilterHeader(),
+                    _buildBrandFilterField(brandController),
+                    _buildSeatsFilterFields(minSeatsController, maxSeatsController),
+                    _buildFuelTypeFilterChips(tempFuelTypes, setModalState),
+                    _buildPriceFilterFields(minPriceController, maxPriceController),
+                    _buildCarTypeFilterChips(tempCarTypes, setModalState),
+                    _buildLocationFilterFields(cityController, radiusController),
+                    _buildFilterActionButtons(
+                      brandController,
+                      minSeatsController,
+                      maxSeatsController,
+                      tempFuelTypes,
+                      minPriceController,
+                      maxPriceController,
+                      tempCarTypes,
+                      cityController,
+                      radiusController,
+                      setModalState,
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: brandController,
-                      decoration: const InputDecoration(
-                        labelText: 'Marka',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: minSeatsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Min. miejsc',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            controller: maxSeatsController,
-                            decoration: const InputDecoration(
-                              labelText: 'Maks. miejsc',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Typ paliwa',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: _availableFuelTypes.map((fuelType) {
-                        return FilterChip(
-                          label: Text(fuelType),
-                          selected: tempFuelTypes.contains(fuelType),
-                          onSelected: (selected) {
-                            setModalState(() {
-                              if (selected) {
-                                tempFuelTypes.add(fuelType);
-                              } else {
-                                tempFuelTypes.remove(fuelType);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: minPriceController,
-                            decoration: const InputDecoration(
-                              labelText: 'Min. cena (PLN)',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextField(
-                            controller: maxPriceController,
-                            decoration: const InputDecoration(
-                              labelText: 'Maks. cena (PLN)',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Typ samochodu',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: _availableCarTypes.map((carType) {
-                        return FilterChip(
-                          label: Text(carType),
-                          selected: tempCarTypes.contains(carType),
-                          onSelected: (selected) {
-                            setModalState(() {
-                              if (selected) {
-                                tempCarTypes.add(carType);
-                              } else {
-                                tempCarTypes.remove(carType);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Lokalizacja',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: cityController,
-                      decoration: const InputDecoration(
-                        labelText: 'Miasto (np. Warszawa)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: radiusController,
-                      decoration: const InputDecoration(
-                        labelText: 'Promień (km)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text(
-                            'Anuluj',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                setModalState(() {
-                                  brandController.clear();
-                                  minSeatsController.clear();
-                                  maxSeatsController.clear();
-                                  minPriceController.clear();
-                                  maxPriceController.clear();
-                                  cityController.clear();
-                                  radiusController.clear();
-                                  tempFuelTypes.clear();
-                                  tempCarTypes.clear();
-                                });
-                              },
-                              child: const Text(
-                                'Wyczyść',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () async {
-                                LatLng? cityCoordinates;
-                                if (cityController.text.isNotEmpty) {
-                                  try {
-                                    final locations =
-                                    await locationFromAddress(cityController.text);
-                                    if (locations.isNotEmpty) {
-                                      final location = locations.first;
-                                      cityCoordinates =
-                                          LatLng(location.latitude, location.longitude);
-                                    } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Nie znaleziono podanego miasta.'),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content:
-                                        Text('Błąd podczas wyszukiwania miasta: $e'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                }
-
-                                setState(() {
-                                  _filterBrand = brandController.text.isEmpty
-                                      ? null
-                                      : brandController.text;
-                                  _minSeats = minSeatsController.text.isEmpty
-                                      ? null
-                                      : int.tryParse(minSeatsController.text);
-                                  _maxSeats = maxSeatsController.text.isEmpty
-                                      ? null
-                                      : int.tryParse(maxSeatsController.text);
-                                  _filterFuelTypes = tempFuelTypes;
-                                  _minPrice = minPriceController.text.isEmpty
-                                      ? null
-                                      : double.tryParse(minPriceController.text);
-                                  _maxPrice = maxPriceController.text.isEmpty
-                                      ? null
-                                      : double.tryParse(maxPriceController.text);
-                                  _filterCarTypes = tempCarTypes;
-                                  _filterCity = cityController.text.isEmpty
-                                      ? null
-                                      : cityController.text;
-                                  _filterRadius = radiusController.text.isEmpty
-                                      ? null
-                                      : double.tryParse(radiusController.text);
-                                  _filterCityCoordinates = cityCoordinates;
-                                  _loadCarListings();
-                                });
-                                Navigator.pop(context);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF375534),
-                                foregroundColor: Colors.white,
-                              ),
-                              child: const Text('Zastosuj'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -924,26 +793,378 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
+  Widget _buildFilterHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        Text(
+          _filterTitle,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: _themeColor,
+          ),
+        ),
+        SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildBrandFilterField(TextEditingController controller) {
+    return Column(
+      children: [
+        TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: _brandFilterLabel,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildSeatsFilterFields(TextEditingController minController, TextEditingController maxController) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: minController,
+                decoration: const InputDecoration(
+                  labelText: _minSeatsLabel,
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextField(
+                controller: maxController,
+                decoration: const InputDecoration(
+                  labelText: _maxSeatsLabel,
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildFuelTypeFilterChips(List<String> tempFuelTypes, StateSetter setModalState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          _fuelTypeLabel,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        Wrap(
+          spacing: 8,
+          children: _availableFuelTypes.map((fuelType) {
+            return FilterChip(
+              label: Text(fuelType),
+              selected: tempFuelTypes.contains(fuelType),
+              onSelected: (selected) {
+                setModalState(() {
+                  if (selected) {
+                    tempFuelTypes.add(fuelType);
+                  } else {
+                    tempFuelTypes.remove(fuelType);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildPriceFilterFields(TextEditingController minController, TextEditingController maxController) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: minController,
+                decoration: const InputDecoration(
+                  labelText: _minPriceLabel,
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextField(
+                controller: maxController,
+                decoration: const InputDecoration(
+                  labelText: _maxPriceLabel,
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildCarTypeFilterChips(List<String> tempCarTypes, StateSetter setModalState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          _carTypeLabel,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        Wrap(
+          spacing: 8,
+          children: _availableCarTypes.map((carType) {
+            return FilterChip(
+              label: Text(carType),
+              selected: tempCarTypes.contains(carType),
+              onSelected: (selected) {
+                setModalState(() {
+                  if (selected) {
+                    tempCarTypes.add(carType);
+                  } else {
+                    tempCarTypes.remove(carType);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildLocationFilterFields(TextEditingController cityController, TextEditingController radiusController) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          _locationLabel,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: cityController,
+          decoration: const InputDecoration(
+            labelText: _cityHint,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: radiusController,
+          decoration: const InputDecoration(
+            labelText: _radiusLabel,
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildFilterActionButtons(
+      TextEditingController brandController,
+      TextEditingController minSeatsController,
+      TextEditingController maxSeatsController,
+      List<String> tempFuelTypes,
+      TextEditingController minPriceController,
+      TextEditingController maxPriceController,
+      List<String> tempCarTypes,
+      TextEditingController cityController,
+      TextEditingController radiusController,
+      StateSetter setModalState,
+      ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text(
+            _cancelButtonText,
+            style: TextStyle(color: _greyColor),
+          ),
+        ),
+        Row(
+          children: [
+            TextButton(
+              onPressed: () async {
+                setModalState(() {
+                  brandController.clear();
+                  minSeatsController.clear();
+                  maxSeatsController.clear();
+                  minPriceController.clear();
+                  maxPriceController.clear();
+                  cityController.clear();
+                  radiusController.clear();
+                  tempFuelTypes.clear();
+                  tempCarTypes.clear();
+                });
+                _clearFilters();
+                await _loadCarListings();
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text(
+                _clearFiltersButtonText,
+                style: TextStyle(color: _redColor),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await _applyFilters(
+                  brandController,
+                  minSeatsController,
+                  maxSeatsController,
+                  tempFuelTypes,
+                  minPriceController,
+                  maxPriceController,
+                  tempCarTypes,
+                  cityController,
+                  radiusController,
+                );
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _themeColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text(_applyFiltersButtonText),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _applyFilters(
+      TextEditingController brandController,
+      TextEditingController minSeatsController,
+      TextEditingController maxSeatsController,
+      List<String> tempFuelTypes,
+      TextEditingController minPriceController,
+      TextEditingController maxPriceController,
+      List<String> tempCarTypes,
+      TextEditingController cityController,
+      TextEditingController radiusController,
+      ) async {
+    setState(() {
+      _filterBrand = brandController.text.isEmpty
+          ? null
+          : brandController.text;
+      _minSeats = minSeatsController.text.isEmpty
+          ? null
+          : int.tryParse(minSeatsController.text);
+      _maxSeats = maxSeatsController.text.isEmpty
+          ? null
+          : int.tryParse(maxSeatsController.text);
+      _filterFuelTypes = List.from(tempFuelTypes);
+      _minPrice = minPriceController.text.isEmpty
+          ? null
+          : double.tryParse(minPriceController.text);
+      _maxPrice = maxPriceController.text.isEmpty
+          ? null
+          : double.tryParse(maxPriceController.text);
+      _filterCarTypes = List.from(tempCarTypes);
+      _filterCity = cityController.text.isEmpty
+          ? null
+          : cityController.text;
+      _filterRadius = radiusController.text.isEmpty
+          ? null
+          : double.tryParse(radiusController.text);
+    });
+
+    if (_filterCity != null && _filterCity!.isNotEmpty) {
+      try {
+        final locations = await locationFromAddress(_filterCity!);
+        if (locations.isNotEmpty) {
+          setState(() {
+            _filterCityCoordinates =
+                LatLng(locations.first.latitude, locations.first.longitude);
+          });
+        } else {
+          _showSnackBar(_cityNotFound, _redColor);
+          setState(() {
+            _filterCityCoordinates = null;
+          });
+        }
+      } catch (e) {
+        _showSnackBar('$_geocodingError $_filterCity', _redColor);
+        setState(() {
+          _filterCityCoordinates = null;
+        });
+      }
+    } else {
+      setState(() {
+        _filterCityCoordinates = null;
+      });
+    }
+
+    _updateFilterStrategies();
+    await _loadCarListings();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _filterBrand = null;
+      _minSeats = null;
+      _maxSeats = null;
+      _filterFuelTypes = [];
+      _minPrice = null;
+      _maxPrice = null;
+      _filterCarTypes = [];
+      _filterCity = null;
+      _filterRadius = null;
+      _filterCityCoordinates = null;
+    });
+    _updateFilterStrategies();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: CustomAppBar(
-        title: "Wypożycz auto",
+        title: _appBarTitle,
         onNotificationPressed: () {
           Navigator.pushNamed(context, '/notifications');
         },
       ),
-      body: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
-          _setMapStyle();
-          return GoogleMap(
+      body: Stack(
+        children: [
+          GoogleMap(
             onMapCreated: (controller) {
-              print('Mapa utworzona, controller: $controller');
-              _controller = controller;
+              debugPrint('Mapa utworzona, controller: $controller');
+              _mapController = controller;
               _setMapStyle();
-              // Przesuń kamerę na początkową pozycję (lokalizacja użytkownika lub Warszawa)
-              _controller!.animateCamera(
+              _mapController!.animateCamera(
                 CameraUpdate.newLatLng(_center),
               );
             },
@@ -953,23 +1174,50 @@ class _RentCarPageState extends State<RentCarPage> {
             ),
             markers: _markers,
             onCameraMove: _onCameraMove,
-          );
-        },
+          ),
+          if (_isListingsLoading || _isLocationLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 10),
+                    if (_isLocationLoading)
+                      const Text(
+                        _searchingLocationText,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FloatingActionButton(
+          FloatingActionButton.extended(
             onPressed: _showFilterBottomSheet,
-            backgroundColor: const Color(0xFF375534),
-            child: const Icon(Icons.filter_list, color: Colors.white),
+            backgroundColor: _themeColor,
+            foregroundColor: Colors.white,
+            label: const Text(_filterButtonText),
+            icon: const Icon(Icons.filter_list),
             heroTag: 'filterButton',
           ),
           const SizedBox(height: 16),
-          FloatingActionButton(
+          FloatingActionButton.extended(
             onPressed: _showRentedCarsBottomSheet,
-            backgroundColor: const Color(0xFF375534),
-            child: const Icon(Icons.car_rental, color: Colors.white),
+            backgroundColor: _themeColor,
+            foregroundColor: Colors.white,
+            label: const Text(_rentedCarsButtonText),
+            icon: const Icon(Icons.car_rental),
             heroTag: 'rentedCarsButton',
           ),
         ],
@@ -980,7 +1228,7 @@ class _RentCarPageState extends State<RentCarPage> {
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 }

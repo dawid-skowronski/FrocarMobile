@@ -32,7 +32,22 @@ class CarRental {
       rentalStatus: json['rentalStatus'],
       carListing: json['carListing'] != null
           ? CarListing.fromJson(json['carListing'])
-          : CarListing.placeholder(),
+          : CarListingBuilder()
+          .setId(0)
+          .setBrand('Brak danych')
+          .setEngineCapacity(0.0)
+          .setFuelType('Brak danych')
+          .setSeats(0)
+          .setCarType('Brak danych')
+          .setFeatures([])
+          .setLatitude(0.0)
+          .setLongitude(0.0)
+          .setUserId(0)
+          .setIsAvailable(false)
+          .setRentalPricePerDay(0.0)
+          .setIsApproved(false)
+          .setAverageRating(0.0)
+          .build(),
     );
   }
 

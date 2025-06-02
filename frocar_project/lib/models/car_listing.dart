@@ -32,22 +32,9 @@ class CarListing {
   });
 
   factory CarListing.fromJson(Map<String, dynamic> json) {
-    return CarListing(
-      id: json['id'] ?? 0,
-      brand: json['brand'] ?? '',
-      engineCapacity: (json['engineCapacity'] as num?)?.toDouble() ?? 0.0,
-      fuelType: json['fuelType'] ?? '',
-      seats: json['seats'] ?? 0,
-      carType: json['carType'] ?? '',
-      features: List<String>.from(json['features'] ?? []),
-      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
-      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
-      userId: json['userId'] ?? 0,
-      isAvailable: json['isAvailable'] as bool? ?? false,
-      rentalPricePerDay: (json['rentalPricePerDay'] as num?)?.toDouble() ?? 0.0,
-      isApproved: json['isApproved'] as bool? ?? false,
-      averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0.0,
-    );
+    return CarListingBuilder()
+        .fromJson(json)
+        .build();
   }
 
   Map<String, dynamic> toJson() {
@@ -70,25 +57,24 @@ class CarListing {
   }
 
   factory CarListing.placeholder() {
-    return CarListing(
-      id: 0,
-      brand: 'Brak danych',
-      engineCapacity: 0.0,
-      fuelType: 'Brak danych',
-      seats: 0,
-      carType: 'Brak danych',
-      features: [],
-      latitude: 0.0,
-      longitude: 0.0,
-      userId: 0,
-      isAvailable: false,
-      rentalPricePerDay: 0.0,
-      isApproved: false,
-      averageRating: 0.0,
-    );
+    return CarListingBuilder()
+        .setId(0)
+        .setBrand('Brak danych')
+        .setEngineCapacity(0.0)
+        .setFuelType('Brak danych')
+        .setSeats(0)
+        .setCarType('Brak danych')
+        .setFeatures([])
+        .setLatitude(0.0)
+        .setLongitude(0.0)
+        .setUserId(0)
+        .setIsAvailable(false)
+        .setRentalPricePerDay(0.0)
+        .setIsApproved(false)
+        .setAverageRating(0.0)
+        .build();
   }
 
-  // 🔁 Metoda copyWith
   CarListing copyWith({
     int? id,
     String? brand,
@@ -105,21 +91,162 @@ class CarListing {
     bool? isApproved,
     double? averageRating,
   }) {
+    return CarListingBuilder()
+        .setId(id ?? this.id)
+        .setBrand(brand ?? this.brand)
+        .setEngineCapacity(engineCapacity ?? this.engineCapacity)
+        .setFuelType(fuelType ?? this.fuelType)
+        .setSeats(seats ?? this.seats)
+        .setCarType(carType ?? this.carType)
+        .setFeatures(features ?? this.features)
+        .setLatitude(latitude ?? this.latitude)
+        .setLongitude(longitude ?? this.longitude)
+        .setUserId(userId ?? this.userId)
+        .setIsAvailable(isAvailable ?? this.isAvailable)
+        .setRentalPricePerDay(rentalPricePerDay ?? this.rentalPricePerDay)
+        .setIsApproved(isApproved ?? this.isApproved)
+        .setAverageRating(averageRating ?? this.averageRating)
+        .build();
+  }
+}
+
+class CarListingBuilder {
+  int? _id;
+  String? _brand;
+  double? _engineCapacity;
+  String? _fuelType;
+  int? _seats;
+  String? _carType;
+  List<String>? _features;
+  double? _latitude;
+  double? _longitude;
+  int? _userId;
+  bool? _isAvailable;
+  double? _rentalPricePerDay;
+  bool? _isApproved;
+  double? _averageRating;
+
+  CarListingBuilder setId(int id) {
+    _id = id;
+    return this;
+  }
+
+  CarListingBuilder setBrand(String brand) {
+    _brand = brand;
+    return this;
+  }
+
+  CarListingBuilder setEngineCapacity(double engineCapacity) {
+    _engineCapacity = engineCapacity;
+    return this;
+  }
+
+  CarListingBuilder setFuelType(String fuelType) {
+    _fuelType = fuelType;
+    return this;
+  }
+
+  CarListingBuilder setSeats(int seats) {
+    _seats = seats;
+    return this;
+  }
+
+  CarListingBuilder setCarType(String carType) {
+    _carType = carType;
+    return this;
+  }
+
+  CarListingBuilder setFeatures(List<String> features) {
+    _features = features;
+    return this;
+  }
+
+  CarListingBuilder setLatitude(double latitude) {
+    _latitude = latitude;
+    return this;
+  }
+
+  CarListingBuilder setLongitude(double longitude) {
+    _longitude = longitude;
+    return this;
+  }
+
+  CarListingBuilder setUserId(int userId) {
+    _userId = userId;
+    return this;
+  }
+
+  CarListingBuilder setIsAvailable(bool isAvailable) {
+    _isAvailable = isAvailable;
+    return this;
+  }
+
+  CarListingBuilder setRentalPricePerDay(double rentalPricePerDay) {
+    _rentalPricePerDay = rentalPricePerDay;
+    return this;
+  }
+
+  CarListingBuilder setIsApproved(bool isApproved) {
+    _isApproved = isApproved;
+    return this;
+  }
+
+  CarListingBuilder setAverageRating(double averageRating) {
+    _averageRating = averageRating;
+    return this;
+  }
+
+  CarListingBuilder fromJson(Map<String, dynamic> json) {
+    _id = json['id'] ?? 0;
+    _brand = json['brand'] ?? '';
+    _engineCapacity = (json['engineCapacity'] as num?)?.toDouble() ?? 0.0;
+    _fuelType = json['fuelType'] ?? '';
+    _seats = json['seats'] ?? 0;
+    _carType = json['carType'] ?? '';
+    _features = List<String>.from(json['features'] ?? []);
+    _latitude = (json['latitude'] as num?)?.toDouble() ?? 0.0;
+    _longitude = (json['longitude'] as num?)?.toDouble() ?? 0.0;
+    _userId = json['userId'] ?? 0;
+    _isAvailable = json['isAvailable'] as bool? ?? false;
+    _rentalPricePerDay = (json['rentalPricePerDay'] as num?)?.toDouble() ?? 0.0;
+    _isApproved = json['isApproved'] as bool? ?? false;
+    _averageRating = (json['averageRating'] as num?)?.toDouble() ?? 0.0;
+    return this;
+  }
+
+  CarListing build() {
+    if (_id == null ||
+        _brand == null ||
+        _engineCapacity == null ||
+        _fuelType == null ||
+        _seats == null ||
+        _carType == null ||
+        _features == null ||
+        _latitude == null ||
+        _longitude == null ||
+        _userId == null ||
+        _isAvailable == null ||
+        _rentalPricePerDay == null ||
+        _isApproved == null ||
+        _averageRating == null) {
+      throw StateError('All required fields must be set');
+    }
+
     return CarListing(
-      id: id ?? this.id,
-      brand: brand ?? this.brand,
-      engineCapacity: engineCapacity ?? this.engineCapacity,
-      fuelType: fuelType ?? this.fuelType,
-      seats: seats ?? this.seats,
-      carType: carType ?? this.carType,
-      features: features ?? this.features,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      userId: userId ?? this.userId,
-      isAvailable: isAvailable ?? this.isAvailable,
-      rentalPricePerDay: rentalPricePerDay ?? this.rentalPricePerDay,
-      isApproved: isApproved ?? this.isApproved,
-      averageRating: averageRating ?? this.averageRating,
+      id: _id!,
+      brand: _brand!,
+      engineCapacity: _engineCapacity!,
+      fuelType: _fuelType!,
+      seats: _seats!,
+      carType: _carType!,
+      features: _features!,
+      latitude: _latitude!,
+      longitude: _longitude!,
+      userId: _userId!,
+      isAvailable: _isAvailable!,
+      rentalPricePerDay: _rentalPricePerDay!,
+      isApproved: _isApproved!,
+      averageRating: _averageRating!,
     );
   }
 }
