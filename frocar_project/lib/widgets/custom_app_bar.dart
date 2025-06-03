@@ -94,67 +94,69 @@ class _CustomAppBarState extends State<CustomAppBar> {
       automaticallyImplyLeading: false,
       actions: [
         if (_username != null && _username!.isNotEmpty)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Consumer<NotificationProvider>(
-                builder: (context, notificationProvider, _) => Stack(
-                  children: [
-                    IconButton(
-                      key: const Key('notification_button'),
-                      icon: const Icon(Icons.notifications, color: Colors.white),
-                      onPressed: () {
-                        widget.onNotificationPressed?.call();
-                        notificationProvider.resetNotificationCount();
-                      },
-                    ),
-                    if (notificationProvider.notificationCount > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            '${notificationProvider.notificationCount}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Consumer<NotificationProvider>(
+                  builder: (context, notificationProvider, _) => Stack(
+                    children: [
+                      IconButton(
+                        key: const Key('notification_button'),
+                        icon: const Icon(Icons.notifications, color: Colors.white),
+                        onPressed: () {
+                          widget.onNotificationPressed?.call();
+                          notificationProvider.resetNotificationCount();
+                        },
+                      ),
+                      if (notificationProvider.notificationCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            textAlign: TextAlign.center,
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '${notificationProvider.notificationCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                key: const Key('theme_toggle'),
-                icon: Icon(
-                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                  color: Colors.white,
+                IconButton(
+                  key: const Key('theme_toggle'),
+                  icon: Icon(
+                    themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                    color: Colors.white,
+                  ),
+                  onPressed: () => themeProvider.toggleTheme(),
                 ),
-                onPressed: () => themeProvider.toggleTheme(),
-              ),
-              IconButton(
-                key: const Key('logout_button'),
-                icon: const Icon(Icons.exit_to_app, color: Colors.white),
-                onPressed: () {
-                  if (widget.onLogoutPressed != null) {
-                    widget.onLogoutPressed!();
-                  } else {
-                    _logout(context);
-                  }
-                },
-              ),
-            ],
+                IconButton(
+                  key: const Key('logout_button'),
+                  icon: const Icon(Icons.exit_to_app, color: Colors.white),
+                  onPressed: () {
+                    if (widget.onLogoutPressed != null) {
+                      widget.onLogoutPressed!();
+                    } else {
+                      _logout(context);
+                    }
+                  },
+                ),
+              ],
+            ),
           )
         else
           IconButton(
@@ -172,3 +174,4 @@ class _CustomAppBarState extends State<CustomAppBar> {
     );
   }
 }
+

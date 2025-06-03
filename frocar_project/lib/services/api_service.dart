@@ -307,6 +307,24 @@ class ApiService {
     }
   }
 
+  Future<void> deleteCarRental(int rentalId) async {
+    final url = Uri.parse('$baseUrl/api/CarRental/$rentalId');
+    try {
+      final response = await _client.delete(
+        url,
+        headers: await _getHeaders(requiresAuth: true),
+      );
+
+      if (response.statusCode != 200) {
+        final errorBody = json.decode(utf8.decode(response.bodyBytes));
+        throw Exception(
+            errorBody['message'] ?? 'Błąd usuwania wypożyczenia: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Błąd podczas usuwania wypożyczenia: $e');
+    }
+  }
+
   Future<List<CarRental>> _getActiveUserCarRentals() async {
     final url = Uri.parse('$baseUrl/api/CarRental/user');
     try {

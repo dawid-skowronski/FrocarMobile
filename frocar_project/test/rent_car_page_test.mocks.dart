@@ -3,18 +3,21 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i5;
+import 'dart:async' as _i6;
+import 'dart:typed_data' as _i13;
 
-import 'package:flutter/foundation.dart' as _i10;
+import 'package:flutter/foundation.dart' as _i11;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i2;
-import 'package:geolocator/geolocator.dart' as _i11;
+import 'package:google_maps_flutter/google_maps_flutter.dart' as _i12;
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart'
+    as _i3;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i4;
-import 'package:test_project/models/car_listing.dart' as _i6;
-import 'package:test_project/models/car_rental.dart' as _i7;
-import 'package:test_project/models/car_rental_review.dart' as _i8;
-import 'package:test_project/models/notification.dart' as _i9;
-import 'package:test_project/services/api_service.dart' as _i3;
+import 'package:mockito/src/dummies.dart' as _i5;
+import 'package:test_project/models/car_listing.dart' as _i7;
+import 'package:test_project/models/car_rental.dart' as _i8;
+import 'package:test_project/models/car_rental_review.dart' as _i9;
+import 'package:test_project/models/notification.dart' as _i10;
+import 'package:test_project/services/api_service.dart' as _i4;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -62,10 +65,26 @@ class _FakeMacOsOptions_5 extends _i1.SmartFake implements _i2.MacOsOptions {
     : super(parent, parentInvocation);
 }
 
+class _FakeLatLngBounds_6 extends _i1.SmartFake implements _i3.LatLngBounds {
+  _FakeLatLngBounds_6(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
+class _FakeScreenCoordinate_7 extends _i1.SmartFake
+    implements _i3.ScreenCoordinate {
+  _FakeScreenCoordinate_7(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
+class _FakeLatLng_8 extends _i1.SmartFake implements _i3.LatLng {
+  _FakeLatLng_8(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
+}
+
 /// A class which mocks [ApiService].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockApiService extends _i1.Mock implements _i3.ApiService {
+class MockApiService extends _i1.Mock implements _i4.ApiService {
   MockApiService() {
     _i1.throwOnMissingStub(this);
   }
@@ -74,7 +93,7 @@ class MockApiService extends _i1.Mock implements _i3.ApiService {
   String get baseUrl =>
       (super.noSuchMethod(
             Invocation.getter(#baseUrl),
-            returnValue: _i4.dummyValue<String>(
+            returnValue: _i5.dummyValue<String>(
               this,
               Invocation.getter(#baseUrl),
             ),
@@ -82,16 +101,16 @@ class MockApiService extends _i1.Mock implements _i3.ApiService {
           as String);
 
   @override
-  _i5.Future<void> requestPasswordReset(String? email) =>
+  _i6.Future<void> requestPasswordReset(String? email) =>
       (super.noSuchMethod(
             Invocation.method(#requestPasswordReset, [email]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<Map<String, dynamic>> register(
+  _i6.Future<Map<String, dynamic>> register(
     String? username,
     String? email,
     String? password,
@@ -104,105 +123,105 @@ class MockApiService extends _i1.Mock implements _i3.ApiService {
               password,
               confirmPassword,
             ]),
-            returnValue: _i5.Future<Map<String, dynamic>>.value(
+            returnValue: _i6.Future<Map<String, dynamic>>.value(
               <String, dynamic>{},
             ),
           )
-          as _i5.Future<Map<String, dynamic>>);
+          as _i6.Future<Map<String, dynamic>>);
 
   @override
-  _i5.Future<Map<String, dynamic>> login(String? username, String? password) =>
+  _i6.Future<Map<String, dynamic>> login(String? username, String? password) =>
       (super.noSuchMethod(
             Invocation.method(#login, [username, password]),
-            returnValue: _i5.Future<Map<String, dynamic>>.value(
+            returnValue: _i6.Future<Map<String, dynamic>>.value(
               <String, dynamic>{},
             ),
           )
-          as _i5.Future<Map<String, dynamic>>);
+          as _i6.Future<Map<String, dynamic>>);
 
   @override
-  _i5.Future<bool> isTokenValid() =>
+  _i6.Future<bool> isTokenValid() =>
       (super.noSuchMethod(
             Invocation.method(#isTokenValid, []),
-            returnValue: _i5.Future<bool>.value(false),
+            returnValue: _i6.Future<bool>.value(false),
           )
-          as _i5.Future<bool>);
+          as _i6.Future<bool>);
 
   @override
-  _i5.Future<String?> getUsername() =>
+  _i6.Future<String?> getUsername() =>
       (super.noSuchMethod(
             Invocation.method(#getUsername, []),
-            returnValue: _i5.Future<String?>.value(),
+            returnValue: _i6.Future<String?>.value(),
           )
-          as _i5.Future<String?>);
+          as _i6.Future<String?>);
 
   @override
-  _i5.Future<void> changeUsername(String? newUsername) =>
+  _i6.Future<void> changeUsername(String? newUsername) =>
       (super.noSuchMethod(
             Invocation.method(#changeUsername, [newUsername]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<void> logout() =>
+  _i6.Future<void> logout() =>
       (super.noSuchMethod(
             Invocation.method(#logout, []),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<void> createCarListing(_i6.CarListing? carListing) =>
+  _i6.Future<void> createCarListing(_i7.CarListing? carListing) =>
       (super.noSuchMethod(
             Invocation.method(#createCarListing, [carListing]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<void> updateCarListing(_i6.CarListing? carListing) =>
+  _i6.Future<void> updateCarListing(_i7.CarListing? carListing) =>
       (super.noSuchMethod(
             Invocation.method(#updateCarListing, [carListing]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<List<_i6.CarListing>> getUserCarListings() =>
+  _i6.Future<List<_i7.CarListing>> getUserCarListings() =>
       (super.noSuchMethod(
             Invocation.method(#getUserCarListings, []),
-            returnValue: _i5.Future<List<_i6.CarListing>>.value(
-              <_i6.CarListing>[],
+            returnValue: _i6.Future<List<_i7.CarListing>>.value(
+              <_i7.CarListing>[],
             ),
           )
-          as _i5.Future<List<_i6.CarListing>>);
+          as _i6.Future<List<_i7.CarListing>>);
 
   @override
-  _i5.Future<List<_i6.CarListing>> getCarListings() =>
+  _i6.Future<List<_i7.CarListing>> getCarListings() =>
       (super.noSuchMethod(
             Invocation.method(#getCarListings, []),
-            returnValue: _i5.Future<List<_i6.CarListing>>.value(
-              <_i6.CarListing>[],
+            returnValue: _i6.Future<List<_i7.CarListing>>.value(
+              <_i7.CarListing>[],
             ),
           )
-          as _i5.Future<List<_i6.CarListing>>);
+          as _i6.Future<List<_i7.CarListing>>);
 
   @override
-  _i5.Future<void> deleteCarListing(int? listingId) =>
+  _i6.Future<void> deleteCarListing(int? listingId) =>
       (super.noSuchMethod(
             Invocation.method(#deleteCarListing, [listingId]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<void> createCarRental(
+  _i6.Future<void> createCarRental(
     int? carListingId,
     DateTime? startDate,
     DateTime? endDate,
@@ -213,77 +232,77 @@ class MockApiService extends _i1.Mock implements _i3.ApiService {
               startDate,
               endDate,
             ]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<List<_i7.CarRental>> getUserCarRentals() =>
+  _i6.Future<List<_i8.CarRental>> getUserCarRentals() =>
       (super.noSuchMethod(
             Invocation.method(#getUserCarRentals, []),
-            returnValue: _i5.Future<List<_i7.CarRental>>.value(
-              <_i7.CarRental>[],
+            returnValue: _i6.Future<List<_i8.CarRental>>.value(
+              <_i8.CarRental>[],
             ),
           )
-          as _i5.Future<List<_i7.CarRental>>);
+          as _i6.Future<List<_i8.CarRental>>);
 
   @override
-  _i5.Future<List<_i8.CarRentalReview>> getReviewsForListing(int? listingId) =>
+  _i6.Future<List<_i9.CarRentalReview>> getReviewsForListing(int? listingId) =>
       (super.noSuchMethod(
             Invocation.method(#getReviewsForListing, [listingId]),
-            returnValue: _i5.Future<List<_i8.CarRentalReview>>.value(
-              <_i8.CarRentalReview>[],
+            returnValue: _i6.Future<List<_i9.CarRentalReview>>.value(
+              <_i9.CarRentalReview>[],
             ),
           )
-          as _i5.Future<List<_i8.CarRentalReview>>);
+          as _i6.Future<List<_i9.CarRentalReview>>);
 
   @override
-  _i5.Future<void> addReview(int? carRentalId, int? rating, String? comment) =>
+  _i6.Future<void> addReview(int? carRentalId, int? rating, String? comment) =>
       (super.noSuchMethod(
             Invocation.method(#addReview, [carRentalId, rating, comment]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<List<_i9.NotificationModel>> fetchNotifications() =>
+  _i6.Future<List<_i10.NotificationModel>> fetchNotifications() =>
       (super.noSuchMethod(
             Invocation.method(#fetchNotifications, []),
-            returnValue: _i5.Future<List<_i9.NotificationModel>>.value(
-              <_i9.NotificationModel>[],
+            returnValue: _i6.Future<List<_i10.NotificationModel>>.value(
+              <_i10.NotificationModel>[],
             ),
           )
-          as _i5.Future<List<_i9.NotificationModel>>);
+          as _i6.Future<List<_i10.NotificationModel>>);
 
   @override
-  _i5.Future<void> markNotificationAsRead(int? notificationId) =>
+  _i6.Future<void> markNotificationAsRead(int? notificationId) =>
       (super.noSuchMethod(
             Invocation.method(#markNotificationAsRead, [notificationId]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<List<Map<String, dynamic>>> fetchAccountNotifications() =>
+  _i6.Future<List<Map<String, dynamic>>> fetchAccountNotifications() =>
       (super.noSuchMethod(
             Invocation.method(#fetchAccountNotifications, []),
-            returnValue: _i5.Future<List<Map<String, dynamic>>>.value(
+            returnValue: _i6.Future<List<Map<String, dynamic>>>.value(
               <Map<String, dynamic>>[],
             ),
           )
-          as _i5.Future<List<Map<String, dynamic>>>);
+          as _i6.Future<List<Map<String, dynamic>>>);
 
   @override
-  _i5.Future<void> markAccountNotificationAsRead(int? notificationId) =>
+  _i6.Future<void> markAccountNotificationAsRead(int? notificationId) =>
       (super.noSuchMethod(
             Invocation.method(#markAccountNotificationAsRead, [notificationId]),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 }
 
 /// A class which mocks [FlutterSecureStorage].
@@ -361,7 +380,7 @@ class MockFlutterSecureStorage extends _i1.Mock
   @override
   void registerListener({
     required String? key,
-    required _i10.ValueChanged<String?>? listener,
+    required _i11.ValueChanged<String?>? listener,
   }) => super.noSuchMethod(
     Invocation.method(#registerListener, [], {#key: key, #listener: listener}),
     returnValueForMissingStub: null,
@@ -370,7 +389,7 @@ class MockFlutterSecureStorage extends _i1.Mock
   @override
   void unregisterListener({
     required String? key,
-    required _i10.ValueChanged<String?>? listener,
+    required _i11.ValueChanged<String?>? listener,
   }) => super.noSuchMethod(
     Invocation.method(#unregisterListener, [], {
       #key: key,
@@ -393,7 +412,7 @@ class MockFlutterSecureStorage extends _i1.Mock
   );
 
   @override
-  _i5.Future<void> write({
+  _i6.Future<void> write({
     required String? key,
     required String? value,
     _i2.IOSOptions? iOptions,
@@ -414,13 +433,13 @@ class MockFlutterSecureStorage extends _i1.Mock
               #mOptions: mOptions,
               #wOptions: wOptions,
             }),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<String?> read({
+  _i6.Future<String?> read({
     required String? key,
     _i2.IOSOptions? iOptions,
     _i2.AndroidOptions? aOptions,
@@ -439,12 +458,12 @@ class MockFlutterSecureStorage extends _i1.Mock
               #mOptions: mOptions,
               #wOptions: wOptions,
             }),
-            returnValue: _i5.Future<String?>.value(),
+            returnValue: _i6.Future<String?>.value(),
           )
-          as _i5.Future<String?>);
+          as _i6.Future<String?>);
 
   @override
-  _i5.Future<bool> containsKey({
+  _i6.Future<bool> containsKey({
     required String? key,
     _i2.IOSOptions? iOptions,
     _i2.AndroidOptions? aOptions,
@@ -463,12 +482,12 @@ class MockFlutterSecureStorage extends _i1.Mock
               #mOptions: mOptions,
               #wOptions: wOptions,
             }),
-            returnValue: _i5.Future<bool>.value(false),
+            returnValue: _i6.Future<bool>.value(false),
           )
-          as _i5.Future<bool>);
+          as _i6.Future<bool>);
 
   @override
-  _i5.Future<void> delete({
+  _i6.Future<void> delete({
     required String? key,
     _i2.IOSOptions? iOptions,
     _i2.AndroidOptions? aOptions,
@@ -487,13 +506,13 @@ class MockFlutterSecureStorage extends _i1.Mock
               #mOptions: mOptions,
               #wOptions: wOptions,
             }),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<Map<String, String>> readAll({
+  _i6.Future<Map<String, String>> readAll({
     _i2.IOSOptions? iOptions,
     _i2.AndroidOptions? aOptions,
     _i2.LinuxOptions? lOptions,
@@ -510,14 +529,14 @@ class MockFlutterSecureStorage extends _i1.Mock
               #mOptions: mOptions,
               #wOptions: wOptions,
             }),
-            returnValue: _i5.Future<Map<String, String>>.value(
+            returnValue: _i6.Future<Map<String, String>>.value(
               <String, String>{},
             ),
           )
-          as _i5.Future<Map<String, String>>);
+          as _i6.Future<Map<String, String>>);
 
   @override
-  _i5.Future<void> deleteAll({
+  _i6.Future<void> deleteAll({
     _i2.IOSOptions? iOptions,
     _i2.AndroidOptions? aOptions,
     _i2.LinuxOptions? lOptions,
@@ -534,25 +553,161 @@ class MockFlutterSecureStorage extends _i1.Mock
               #mOptions: mOptions,
               #wOptions: wOptions,
             }),
-            returnValue: _i5.Future<void>.value(),
-            returnValueForMissingStub: _i5.Future<void>.value(),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
           )
-          as _i5.Future<void>);
+          as _i6.Future<void>);
 
   @override
-  _i5.Future<bool?> isCupertinoProtectedDataAvailable() =>
+  _i6.Future<bool?> isCupertinoProtectedDataAvailable() =>
       (super.noSuchMethod(
             Invocation.method(#isCupertinoProtectedDataAvailable, []),
-            returnValue: _i5.Future<bool?>.value(),
+            returnValue: _i6.Future<bool?>.value(),
           )
-          as _i5.Future<bool?>);
+          as _i6.Future<bool?>);
 }
 
-/// A class which mocks [Geolocator].
+/// A class which mocks [GoogleMapController].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockGeolocator extends _i1.Mock implements _i11.Geolocator {
-  MockGeolocator() {
+class MockGoogleMapController extends _i1.Mock
+    implements _i12.GoogleMapController {
+  MockGoogleMapController() {
     _i1.throwOnMissingStub(this);
   }
+
+  @override
+  int get mapId =>
+      (super.noSuchMethod(Invocation.getter(#mapId), returnValue: 0) as int);
+
+  @override
+  _i6.Future<void> clearTileCache(_i3.TileOverlayId? tileOverlayId) =>
+      (super.noSuchMethod(
+            Invocation.method(#clearTileCache, [tileOverlayId]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
+  _i6.Future<void> animateCamera(_i3.CameraUpdate? cameraUpdate) =>
+      (super.noSuchMethod(
+            Invocation.method(#animateCamera, [cameraUpdate]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
+  _i6.Future<void> moveCamera(_i3.CameraUpdate? cameraUpdate) =>
+      (super.noSuchMethod(
+            Invocation.method(#moveCamera, [cameraUpdate]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
+  _i6.Future<void> setMapStyle(String? mapStyle) =>
+      (super.noSuchMethod(
+            Invocation.method(#setMapStyle, [mapStyle]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
+  _i6.Future<String?> getStyleError() =>
+      (super.noSuchMethod(
+            Invocation.method(#getStyleError, []),
+            returnValue: _i6.Future<String?>.value(),
+          )
+          as _i6.Future<String?>);
+
+  @override
+  _i6.Future<_i3.LatLngBounds> getVisibleRegion() =>
+      (super.noSuchMethod(
+            Invocation.method(#getVisibleRegion, []),
+            returnValue: _i6.Future<_i3.LatLngBounds>.value(
+              _FakeLatLngBounds_6(
+                this,
+                Invocation.method(#getVisibleRegion, []),
+              ),
+            ),
+          )
+          as _i6.Future<_i3.LatLngBounds>);
+
+  @override
+  _i6.Future<_i3.ScreenCoordinate> getScreenCoordinate(_i3.LatLng? latLng) =>
+      (super.noSuchMethod(
+            Invocation.method(#getScreenCoordinate, [latLng]),
+            returnValue: _i6.Future<_i3.ScreenCoordinate>.value(
+              _FakeScreenCoordinate_7(
+                this,
+                Invocation.method(#getScreenCoordinate, [latLng]),
+              ),
+            ),
+          )
+          as _i6.Future<_i3.ScreenCoordinate>);
+
+  @override
+  _i6.Future<_i3.LatLng> getLatLng(_i3.ScreenCoordinate? screenCoordinate) =>
+      (super.noSuchMethod(
+            Invocation.method(#getLatLng, [screenCoordinate]),
+            returnValue: _i6.Future<_i3.LatLng>.value(
+              _FakeLatLng_8(
+                this,
+                Invocation.method(#getLatLng, [screenCoordinate]),
+              ),
+            ),
+          )
+          as _i6.Future<_i3.LatLng>);
+
+  @override
+  _i6.Future<void> showMarkerInfoWindow(_i3.MarkerId? markerId) =>
+      (super.noSuchMethod(
+            Invocation.method(#showMarkerInfoWindow, [markerId]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
+  _i6.Future<void> hideMarkerInfoWindow(_i3.MarkerId? markerId) =>
+      (super.noSuchMethod(
+            Invocation.method(#hideMarkerInfoWindow, [markerId]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
+  _i6.Future<bool> isMarkerInfoWindowShown(_i3.MarkerId? markerId) =>
+      (super.noSuchMethod(
+            Invocation.method(#isMarkerInfoWindowShown, [markerId]),
+            returnValue: _i6.Future<bool>.value(false),
+          )
+          as _i6.Future<bool>);
+
+  @override
+  _i6.Future<double> getZoomLevel() =>
+      (super.noSuchMethod(
+            Invocation.method(#getZoomLevel, []),
+            returnValue: _i6.Future<double>.value(0.0),
+          )
+          as _i6.Future<double>);
+
+  @override
+  _i6.Future<_i13.Uint8List?> takeSnapshot() =>
+      (super.noSuchMethod(
+            Invocation.method(#takeSnapshot, []),
+            returnValue: _i6.Future<_i13.Uint8List?>.value(),
+          )
+          as _i6.Future<_i13.Uint8List?>);
+
+  @override
+  void dispose() => super.noSuchMethod(
+    Invocation.method(#dispose, []),
+    returnValueForMissingStub: null,
+  );
 }

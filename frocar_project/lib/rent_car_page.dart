@@ -35,7 +35,7 @@ const String _mapStyleLoadError = 'Błąd ładowania stylu mapy:';
 const String _okButtonText = 'OK';
 
 const String _showEndedRentalsSwitchText = 'Pokaż zakończone wypożyczenia';
-const String _noEndedRentals = 'Brak zakończonych wypożyczeń';
+const String _noEndedOrCanceledRentals = 'Brak zakończonych lub anulowanych wypożyczeń';
 const String _noActiveRentals = 'Brak aktywnych wypożyczeń';
 const String _rentalDatesLabel = 'Od: %s Do: %s';
 const String _rentalPriceLabel = 'Cena wypożyczenia: %s PLN';
@@ -43,6 +43,16 @@ const String _daysRemainingLabel = 'Dni do końca wypożyczenia: %s';
 const String _addReviewButtonText = 'Dodaj opinię';
 const String _rentalStatusActive = 'Aktywne';
 const String _rentalStatusEnded = 'Zakończone';
+const String _rentalStatusCanceled = 'Anulowane';
+
+const String _cancelRentalButtonText = 'Anuluj wypożyczenie';
+const String _cancelRentalConfirmTitle = 'Anuluj wypożyczenie';
+const String _cancelRentalConfirmMessage = 'Czy na pewno chcesz anulować to wypożyczenie?';
+const String _yesButtonText = 'Tak';
+const String _noButtonText = 'Nie';
+const String _cancelSuccess = 'Wypożyczenie anulowane pomyślnie!';
+const String _cancelError = 'Błąd podczas anulowania wypożyczenia:';
+
 
 const String _filterTitle = 'Filtry wyszukiwania';
 const String _brandFilterLabel = 'Marka';
@@ -281,9 +291,6 @@ class _RentCarPageState extends State<RentCarPage> {
         }).toList();
         debugPrint('Załadowano ${_carListings.length} listingów');
         _updateMarkers();
-        if (_carListings.isEmpty) {
-          _showErrorDialog(_noListingsMatchingCriteria);
-        }
       });
     } catch (e) {
       setState(() {
@@ -464,7 +471,7 @@ class _RentCarPageState extends State<RentCarPage> {
 
   double _calculateTotalPrice(CarRental rental) {
     final days = rental.rentalEndDate.difference(rental.rentalStartDate).inDays;
-    return days * rental.carListing.rentalPricePerDay;
+    return (days < 1 ? 1 : days) * rental.carListing.rentalPricePerDay;
   }
 
   int _calculateDaysUntilEnd(CarRental rental) {
@@ -472,8 +479,9 @@ class _RentCarPageState extends State<RentCarPage> {
     if (rental.rentalEndDate.isBefore(now)) {
       return 0;
     }
-    return rental.rentalEndDate.difference(now).inDays;
+    return (rental.rentalEndDate.difference(now).inHours / 24).ceil();
   }
+
 
   void _showRentedCarsBottomSheet() {
     showModalBottomSheet(
@@ -481,11 +489,16 @@ class _RentCarPageState extends State<RentCarPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            final filteredRentals = _userRentals.where((rental) {
-              debugPrint(
-                  'Filtruję rental: ${rental.rentalStatus}, showEndedRentals: $_showEndedRentals');
-              return _showEndedRentals || rental.rentalStatus != _rentalStatusEnded;
-            }).toList();
+            final activeRentals = _userRentals.where((rental) =>
+            rental.rentalStatus == _rentalStatusActive
+            ).toList();
+
+            final endedOrCanceledRentals = _userRentals.where((rental) =>
+            rental.rentalStatus == _rentalStatusEnded ||
+                rental.rentalStatus == _rentalStatusCanceled
+            ).toList();
+
+            final displayRentals = _showEndedRentals ? endedOrCanceledRentals : activeRentals;
 
             return Theme(
               data: Theme.of(context).copyWith(
@@ -494,7 +507,7 @@ class _RentCarPageState extends State<RentCarPage> {
               child: Column(
                 children: [
                   _buildShowEndedRentalsSwitch(setModalState),
-                  _buildRentedRentalsList(filteredRentals, _showEndedRentals, setModalState),
+                  _buildRentedRentalsList(displayRentals, _showEndedRentals, setModalState),
                 ],
               ),
             );
@@ -532,26 +545,44 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildRentedRentalsList(List<CarRental> filteredRentals, bool showEndedRentals, StateSetter setModalState) {
+  Widget _buildRentedRentalsList(List<CarRental> displayRentals, bool showEndedRentals, StateSetter setModalState) {
     if (_isRentalsLoading) {
       return const Expanded(
         child: Center(
           child: CircularProgressIndicator(),
         ),
       );
-    } else if (filteredRentals.isEmpty) {
+    } else if (displayRentals.isEmpty) {
       return _buildNoRentalsMessage(showEndedRentals);
     } else {
       return Expanded(
         child: ListView.builder(
-          itemCount: filteredRentals.length,
+          itemCount: displayRentals.length,
           itemBuilder: (context, index) {
-            final rental = filteredRentals[index];
+            final rental = displayRentals[index];
             return _buildRentalCard(rental, setModalState);
           },
         ),
       );
     }
+  }
+
+  Widget _buildDetailRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: _themeColor, size: 20),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 15,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildNoRentalsMessage(bool showEndedRentals) {
@@ -566,7 +597,7 @@ class _RentCarPageState extends State<RentCarPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            showEndedRentals ? _noEndedRentals : _noActiveRentals,
+            showEndedRentals ? _noEndedOrCanceledRentals : _noActiveRentals,
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -587,8 +618,8 @@ class _RentCarPageState extends State<RentCarPage> {
         bool canAddReview = false;
         if (reviewSnapshot.hasData) {
           final reviews = reviewSnapshot.data!;
-          canAddReview =
-          !reviews.any((review) => review.carRentalId == rental.carRentalId);
+          canAddReview = rental.rentalStatus == _rentalStatusEnded &&
+              !reviews.any((review) => review.carRentalId == rental.carRentalId);
         }
 
         return Card(
@@ -613,8 +644,8 @@ class _RentCarPageState extends State<RentCarPage> {
             ),
             subtitle: Text(
               _rentalDatesLabel
-                  .replaceAll('%s', rental.rentalStartDate.toString().substring(0, 10))
-                  .replaceAll('%s', rental.rentalEndDate.toString().substring(0, 10)),
+                  .replaceAll('%s', DateFormat('dd.MM.yyyy').format(rental.rentalStartDate))
+                  .replaceAll('%s', DateFormat('dd.MM.yyyy').format(rental.rentalEndDate)),
               style: const TextStyle(fontSize: 14, color: _greyColor),
             ),
             trailing: _buildRentalStatusChip(rental.rentalStatus),
@@ -628,9 +659,19 @@ class _RentCarPageState extends State<RentCarPage> {
   }
 
   Widget _buildRentalStatusChip(String status) {
-    Color color = _greyColor;
-    if (status == _rentalStatusActive) {
-      color = _greenColor;
+    Color color;
+    switch (status) {
+      case _rentalStatusActive:
+        color = _greenColor;
+        break;
+      case _rentalStatusEnded:
+        color = _amberColor;
+        break;
+      case _rentalStatusCanceled:
+        color = _redColor;
+        break;
+      default:
+        color = _greyColor;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -661,40 +702,22 @@ class _RentCarPageState extends State<RentCarPage> {
                 .replaceAll('%s', _calculateTotalPrice(rental).toStringAsFixed(2)),
           ),
           const SizedBox(height: 12),
-          _buildDetailRow(
-            Icons.timer,
-            _daysRemainingLabel
-                .replaceAll('%s', _calculateDaysUntilEnd(rental).toString()),
-          ),
+          if (rental.rentalStatus == _rentalStatusActive)
+            _buildDetailRow(
+              Icons.timer,
+              _daysRemainingLabel
+                  .replaceAll('%s', _calculateDaysUntilEnd(rental).toString()),
+            ),
+          if (rental.rentalStatus == _rentalStatusActive) ...[
+            const SizedBox(height: 16),
+            _buildCancelRentalButton(rental, setModalState),
+          ],
           if (rental.rentalStatus == _rentalStatusEnded && canAddReview) ...[
             const SizedBox(height: 16),
             _buildAddReviewButton(rental, setModalState),
           ],
         ],
       ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          color: _themeColor,
-          size: 20,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: _greyColor,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -728,6 +751,61 @@ class _RentCarPageState extends State<RentCarPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildCancelRentalButton(CarRental rental, StateSetter setModalState) {
+    return Center(
+      child: ElevatedButton(
+        onPressed: () async {
+          final bool? confirm = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text(_cancelRentalConfirmTitle),
+                content: const Text(_cancelRentalConfirmMessage),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text(_noButtonText),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text(_yesButtonText),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (confirm == true) {
+            await _cancelRental(rental.carRentalId, setModalState);
+          }
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _redColor,
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: const Text(
+          _cancelRentalButtonText,
+          style: TextStyle(fontSize: 16, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _cancelRental(int rentalId, StateSetter setModalState) async {
+    try {
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      await apiService.deleteCarRental(rentalId);
+      _showSnackBar(_cancelSuccess, _greenColor);
+      await _loadUserRentals();
+      setModalState(() {});
+    } catch (e) {
+      _showSnackBar('$_cancelError ${e.toString().replaceFirst('Exception: ', '')}', _redColor);
+    }
   }
 
 
@@ -1028,6 +1106,9 @@ class _RentCarPageState extends State<RentCarPage> {
                 await _loadCarListings();
                 if (mounted) {
                   Navigator.pop(context);
+                  if (_carListings.isEmpty) {
+                    _showErrorDialog(_noListingsMatchingCriteria);
+                  }
                 }
               },
               child: const Text(
@@ -1048,9 +1129,6 @@ class _RentCarPageState extends State<RentCarPage> {
                   cityController,
                   radiusController,
                 );
-                if (mounted) {
-                  Navigator.pop(context);
-                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _themeColor,
@@ -1129,6 +1207,14 @@ class _RentCarPageState extends State<RentCarPage> {
 
     _updateFilterStrategies();
     await _loadCarListings();
+
+    if (mounted) {
+      Navigator.pop(context);
+
+      if (_carListings.isEmpty) {
+        _showErrorDialog(_noListingsMatchingCriteria);
+      }
+    }
   }
 
   void _clearFilters() {

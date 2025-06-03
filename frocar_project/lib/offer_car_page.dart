@@ -128,7 +128,11 @@ class _OfferCarPageState extends State<OfferCarPage> {
           MaterialPageRoute(
             builder: (_) => const listingPage.CarListingPage(),
           ),
-        ).then((_) => _loadUserListings());
+        ).then((result) {
+          if (result == true) {
+            _loadUserListings();
+          }
+        });
       },
       child: Card(
         color: const Color(0xFF375534),
@@ -231,14 +235,18 @@ class _OfferCarPageState extends State<OfferCarPage> {
           ],
         ),
         onTap: () {
-          Navigator.push(
+          Navigator.push<bool>(
             context,
             MaterialPageRoute(
               builder: (_) => detailPage.CarListingDetailPage(
                 listing: listing,
               ),
             ),
-          );
+          ).then((result) {
+            if (result == true) {
+              _loadUserListings();
+            }
+          });
         },
       ),
     );

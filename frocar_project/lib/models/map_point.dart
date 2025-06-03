@@ -1,12 +1,11 @@
-// lib/models/map_point.dart
 class MapPoint {
-  final int? id; // Id jest teraz opcjonalne
+  final int? id;
   final double latitude;
   final double longitude;
   final int userId;
 
   MapPoint({
-    this.id, // Id nie jest wymagane
+    this.id,
     required this.latitude,
     required this.longitude,
     required this.userId,

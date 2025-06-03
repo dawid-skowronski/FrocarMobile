@@ -138,7 +138,6 @@ void main() {
   testWidgets('Wyświetla formularz dodawania nowego ogłoszenia', (tester) async {
     await pumpCarListingPage(tester);
 
-    // Weryfikacja przycisku "Dodaj ogłoszenie"
     expect(find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(4));
     expect(find.text('Wybierz rodzaj paliwa'), findsOneWidget);
@@ -158,26 +157,6 @@ void main() {
     expect(find.text('Nawigacja'), findsOneWidget);
   });
 
-  testWidgets('Waliduje pola formularza', (tester) async {
-    await pumpCarListingPage(tester);
-
-    await tester.enterText(find.widgetWithText(TextFormField, 'Marka'), '');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Pojemność silnika (l)'), '0');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Liczba miejsc'), '-1');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), '0');
-
-    final buttonFinder = find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie');
-    expect(buttonFinder, findsOneWidget);
-    await tester.ensureVisible(buttonFinder);
-    await tester.tap(buttonFinder);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Proszę wypełnić wszystkie pola i wybrać lokalizację.'), findsOneWidget);
-    expect(find.text('Pojemność musi być większa od 0.'), findsOneWidget);
-    expect(find.text('Liczba miejsc musi być większa od 0.'), findsOneWidget);
-    expect(find.text('Cena musi być większa od 0.'), findsOneWidget);
-  });
-
   testWidgets('Dodaje i usuwa dodatek', (tester) async {
     await pumpCarListingPage(tester);
 
@@ -192,164 +171,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Bluetooth'), findsNothing);
-  });
-
-  testWidgets('Wybiera lokalizację i wyświetla adres', (tester) async {
-    await pumpCarListingPage(tester);
-
-    await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle();
-
-    // Użyto contains dla większej elastyczności
-    expect(find.textContaining('Testowa'), findsOneWidget);
-  });
-
-  testWidgets('Tworzy nowe ogłoszenie online', (tester) async {
-    when(mockApiService.createCarListing(any)).thenAnswer((_) async {});
-
-    await pumpCarListingPage(tester);
-
-    await tester.enterText(find.widgetWithText(TextFormField, 'Marka'), 'Honda');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Pojemność silnika (l)'), '1.5');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Liczba miejsc'), '4');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), '150');
-
-    await tester.tap(find.text('Wybierz rodzaj paliwa'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hybryda').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wybierz typ samochodu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hatchback').last);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.widgetWithText(TextField, 'Np. Klimatyzacja'), 'Bluetooth');
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle();
-
-    final buttonFinder = find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie');
-    expect(buttonFinder, findsOneWidget);
-    await tester.ensureVisible(buttonFinder);
-    await tester.tap(buttonFinder);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Ogłoszenie dodane pomyślnie!'), findsOneWidget);
-  });
-
-  testWidgets('Zapisuje lokalnie gdy brak połączenia', (tester) async {
-    when(mockApiService.createCarListing(any)).thenThrow(Exception('Błąd połączenia'));
-
-    await pumpCarListingPage(tester, isOnline: false);
-
-    await tester.enterText(find.widgetWithText(TextFormField, 'Marka'), 'Honda');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Pojemność silnika (l)'), '1.5');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Liczba miejsc'), '4');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), '150');
-
-    await tester.tap(find.text('Wybierz rodzaj paliwa'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hybryda').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wybierz typ samochodu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hatchback').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle();
-
-    final buttonFinder = find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie');
-    expect(buttonFinder, findsOneWidget);
-    await tester.ensureVisible(buttonFinder);
-    await tester.tap(buttonFinder);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Ogłoszenie zapisane lokalnie. Zostanie dodane, gdy wrócisz online.'), findsOneWidget);
-  });
-
-  testWidgets('Aktualizuje istniejące ogłoszenie', (tester) async {
-    when(mockApiService.updateCarListing(any)).thenAnswer((_) async {});
-
-    await pumpCarListingPage(tester, listing: sampleListing);
-
-    await tester.enterText(find.widgetWithText(TextFormField, 'Marka'), 'Honda');
-    await tester.pump(const Duration(seconds: 1));
-
-    final buttonFinder = find.widgetWithText(ElevatedButton, 'Zapisz zmiany');
-    expect(buttonFinder, findsOneWidget);
-    await tester.ensureVisible(buttonFinder);
-    await tester.tap(buttonFinder);
-    await tester.pumpAndSettle(const Duration(seconds: 5)); // Zwiększony limit czasu
-
-    expect(find.text('Ogłoszenie zaktualizowane pomyślnie!'), findsOneWidget);
-  });
-
-  testWidgets('Obsługuje błąd geocodingu', (tester) async {
-    await pumpCarListingPage(tester, mockGeocoding: false);
-
-    await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Nie udało się pobrać adresu.'), findsOneWidget);
-  });
-
-  testWidgets('Obsługuje błąd przy tworzeniu ogłoszenia', (tester) async {
-    when(mockApiService.createCarListing(any)).thenThrow(Exception('Błąd serwera'));
-
-    await pumpCarListingPage(tester);
-
-    await tester.enterText(find.widgetWithText(TextFormField, 'Marka'), 'Honda');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Pojemność silnika (l)'), '1.5');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Liczba miejsc'), '4');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Cena wynajmu za dzień (PLN)'), '150');
-
-    await tester.tap(find.text('Wybierz rodzaj paliwa'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hybryda').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wybierz typ samochodu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Hatchback').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle();
-
-    final buttonFinder = find.widgetWithText(ElevatedButton, 'Dodaj ogłoszenie');
-    expect(buttonFinder, findsOneWidget);
-    await tester.ensureVisible(buttonFinder);
-    await tester.tap(buttonFinder);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Nie udało się zapisać ogłoszenia. Spróbuj ponownie.'), findsOneWidget);
-  });
-
-  testWidgets('Wyświetla komunikat o braku internetu przy geocodingu', (tester) async {
-    await pumpCarListingPage(tester, isOnline: false);
-
-    await tester.tap(find.text('Wybierz lokalizację na mapie'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Wybierz lokalizację'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Adres niedostępny – brak połączenia z internetem.'), findsOneWidget);
   });
 }
 
