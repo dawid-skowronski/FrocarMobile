@@ -9,19 +9,19 @@ import 'package:test_project/providers/user_provider.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/widgets/custom_app_bar.dart';
 import 'package:test_project/reset_password_page.dart';
-import 'rent_car_page.dart';
-import 'offer_car_page.dart';
-import 'login.dart';
-import 'register.dart';
-import 'widgets/loading_screen.dart';
+import 'package:test_project/rent_car_page.dart';
+import 'package:test_project/offer_car_page.dart';
+import 'package:test_project/login.dart';
+import 'package:test_project/register.dart';
+import 'package:test_project/widgets/loading_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:simple_gradient_text/simple_gradient_text.dart';
-import 'profile_page.dart';
+import 'package:test_project/profile_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'notifications_page.dart';
+import 'package:test_project/notifications_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:test_project/models/car_listing.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -50,6 +50,7 @@ const String _rentalFinishedTitle = 'Wypożyczenie zakończone';
 const String _listingAcceptedTitle = 'Ogłoszenie zaakceptowane';
 const String _noNewNotificationsMessage = 'Brak nowych powiadomień.';
 const String _fetchNotificationsErrorMessage = 'Nie udało się pobrać powiadomień. Spróbuję ponownie później.';
+const String _noInternetMessage = 'Brak połączenia z internetem.';
 
 const String _homePageTitle = "FroCar";
 const String _rentCarText = "Chcę wynająć samochód";
@@ -61,6 +62,7 @@ const String _registerButtonText = "Zarejestruj";
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -171,6 +173,7 @@ class _MyAppState extends State<MyApp> {
   Set<int> _seenNotificationIds = {};
   bool _isCheckingNotifications = false;
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  bool _isSnackBarShowing = false;
 
   @override
   void initState() {
@@ -180,6 +183,7 @@ class _MyAppState extends State<MyApp> {
     _setupNotificationPolling();
     _setupFirebaseMessageListeners();
     _setupConnectivityListener();
+    _checkInitialConnectivity();
   }
 
   @override
@@ -235,11 +239,52 @@ class _MyAppState extends State<MyApp> {
 
   void _setupConnectivityListener() {
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-      if (result != ConnectivityResult.none) {
+      if (result == ConnectivityResult.none) {
+        _showNoInternetSnackBar();
+      } else {
         debugPrint('Internet przywrócony – synchronizuję dane.');
         _syncPendingListingsAtStart();
+        _hideNoInternetSnackBar();
       }
     });
+  }
+
+  Future<void> _checkInitialConnectivity() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      _showNoInternetSnackBar();
+    }
+  }
+
+  void _showNoInternetSnackBar() {
+    if (!_isSnackBarShowing) {
+      _isSnackBarShowing = true;
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(
+            _noInternetMessage,
+            style: GoogleFonts.poppins(fontSize: 16),
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(days: 10),
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              _isSnackBarShowing = false;
+              scaffoldMessengerKey.currentState?.hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  void _hideNoInternetSnackBar() {
+    if (_isSnackBarShowing) {
+      _isSnackBarShowing = false;
+      scaffoldMessengerKey.currentState?.hideCurrentSnackBar();
+    }
   }
 
   Future<void> _loadSeenNotificationIds() async {
@@ -282,7 +327,7 @@ class _MyAppState extends State<MyApp> {
         await storage.delete(key: _passwordKey);
         userProvider.logout();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessengerKey.currentState?.showSnackBar(
             const SnackBar(content: Text(_sessionExpiredMessage)),
           );
         }
@@ -360,6 +405,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       themeMode: themeProvider.themeMode,
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
@@ -399,6 +445,7 @@ class _MyAppState extends State<MyApp> {
     };
   }
 }
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

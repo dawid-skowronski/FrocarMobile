@@ -8,7 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:test_project/services/api_service.dart';
 import 'package:test_project/models/car_listing.dart';
 import 'package:test_project/models/car_rental.dart';
@@ -28,7 +28,8 @@ const String _locationPermissionDeniedForever = 'Pozwolenie na lokalizację perm
 const String _locationFetchError = 'Błąd pobierania lokalizacji:';
 const String _jwtTokenError = 'Nieprawidłowy token JWT';
 const String _userIdLoadError = 'Błąd ładowania ID użytkownika:';
-const String _listingsLoadError = 'Brak dostępnych aut do wypożyczenia:';
+const String _listingsLoadError = 'Nie można załadować ogłoszeń.';
+const String _noInternetError = 'Brak połączenia z internetem.';
 const String _noListingsMatchingCriteria = 'Brak dostępnych aut spełniających kryteria';
 const String _rentalsLoadError = 'Błąd ładowania wypożyczeń:';
 const String _mapStyleLoadError = 'Błąd ładowania stylu mapy:';
@@ -52,7 +53,6 @@ const String _yesButtonText = 'Tak';
 const String _noButtonText = 'Nie';
 const String _cancelSuccess = 'Wypożyczenie anulowane pomyślnie!';
 const String _cancelError = 'Błąd podczas anulowania wypożyczenia:';
-
 
 const String _filterTitle = 'Filtry wyszukiwania';
 const String _brandFilterLabel = 'Marka';
@@ -282,6 +282,16 @@ class _RentCarPageState extends State<RentCarPage> {
   }
 
   Future<void> _loadCarListings() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      setState(() {
+        _carListings = [];
+        _updateMarkers();
+      });
+      _showErrorDialog(_noInternetError);
+      return;
+    }
+
     try {
       final apiService = Provider.of<ApiService>(context, listen: false);
       final carListings = await apiService.getCarListings();
@@ -297,8 +307,12 @@ class _RentCarPageState extends State<RentCarPage> {
         _carListings = [];
         _updateMarkers();
       });
-      _showErrorDialog(
-          '$_listingsLoadError ${e.toString().replaceFirst('Exception: ', '')}');
+      final errorMessage = e.toString().toLowerCase();
+      if (errorMessage.contains('failed host lookup') || errorMessage.contains('socketexception')) {
+        _showErrorDialog(_noInternetError);
+      } else {
+        _showErrorDialog(_listingsLoadError);
+      }
     }
   }
 
@@ -328,13 +342,17 @@ class _RentCarPageState extends State<RentCarPage> {
             size: 48,
             color: _greyColor,
           ),
-          content: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _greyColor,
+          content: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: _greyColor,
+                height: 1.5,
+              ),
             ),
           ),
           actions: [
@@ -347,6 +365,9 @@ class _RentCarPageState extends State<RentCarPage> {
                   backgroundColor: _themeColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: const Text(
                   _okButtonText,
@@ -354,6 +375,7 @@ class _RentCarPageState extends State<RentCarPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
           ],
         );
       },
@@ -482,7 +504,6 @@ class _RentCarPageState extends State<RentCarPage> {
     return (rental.rentalEndDate.difference(now).inHours / 24).ceil();
   }
 
-
   void _showRentedCarsBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -490,15 +511,14 @@ class _RentCarPageState extends State<RentCarPage> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             final activeRentals = _userRentals.where((rental) =>
-            rental.rentalStatus == _rentalStatusActive
-            ).toList();
+            rental.rentalStatus == _rentalStatusActive).toList();
 
             final endedOrCanceledRentals = _userRentals.where((rental) =>
             rental.rentalStatus == _rentalStatusEnded ||
-                rental.rentalStatus == _rentalStatusCanceled
-            ).toList();
+                rental.rentalStatus == _rentalStatusCanceled).toList();
 
-            final displayRentals = _showEndedRentals ? endedOrCanceledRentals : activeRentals;
+            final displayRentals =
+            _showEndedRentals ? endedOrCanceledRentals : activeRentals;
 
             return Theme(
               data: Theme.of(context).copyWith(
@@ -507,7 +527,8 @@ class _RentCarPageState extends State<RentCarPage> {
               child: Column(
                 children: [
                   _buildShowEndedRentalsSwitch(setModalState),
-                  _buildRentedRentalsList(displayRentals, _showEndedRentals, setModalState),
+                  _buildRentedRentalsList(
+                      displayRentals, _showEndedRentals, setModalState),
                 ],
               ),
             );
@@ -545,7 +566,8 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildRentedRentalsList(List<CarRental> displayRentals, bool showEndedRentals, StateSetter setModalState) {
+  Widget _buildRentedRentalsList(List<CarRental> displayRentals,
+      bool showEndedRentals, StateSetter setModalState) {
     if (_isRentalsLoading) {
       return const Expanded(
         child: Center(
@@ -644,8 +666,10 @@ class _RentCarPageState extends State<RentCarPage> {
             ),
             subtitle: Text(
               _rentalDatesLabel
-                  .replaceAll('%s', DateFormat('dd.MM.yyyy').format(rental.rentalStartDate))
-                  .replaceAll('%s', DateFormat('dd.MM.yyyy').format(rental.rentalEndDate)),
+                  .replaceAll(
+                  '%s', DateFormat('dd.MM.yyyy').format(rental.rentalStartDate))
+                  .replaceAll(
+                  '%s', DateFormat('dd.MM.yyyy').format(rental.rentalEndDate)),
               style: const TextStyle(fontSize: 14, color: _greyColor),
             ),
             trailing: _buildRentalStatusChip(rental.rentalStatus),
@@ -690,7 +714,8 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildRentalDetails(CarRental rental, bool canAddReview, StateSetter setModalState) {
+  Widget _buildRentalDetails(
+      CarRental rental, bool canAddReview, StateSetter setModalState) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Column(
@@ -698,8 +723,8 @@ class _RentCarPageState extends State<RentCarPage> {
         children: [
           _buildDetailRow(
             Icons.monetization_on,
-            _rentalPriceLabel
-                .replaceAll('%s', _calculateTotalPrice(rental).toStringAsFixed(2)),
+            _rentalPriceLabel.replaceAll(
+                '%s', _calculateTotalPrice(rental).toStringAsFixed(2)),
           ),
           const SizedBox(height: 12),
           if (rental.rentalStatus == _rentalStatusActive)
@@ -804,19 +829,25 @@ class _RentCarPageState extends State<RentCarPage> {
       await _loadUserRentals();
       setModalState(() {});
     } catch (e) {
-      _showSnackBar('$_cancelError ${e.toString().replaceFirst('Exception: ', '')}', _redColor);
+      _showSnackBar(
+          '$_cancelError ${e.toString().replaceFirst('Exception: ', '')}',
+          _redColor);
     }
   }
 
-
   void _showFilterBottomSheet() {
     final brandController = TextEditingController(text: _filterBrand ?? '');
-    final minSeatsController = TextEditingController(text: _minSeats?.toString() ?? '');
-    final maxSeatsController = TextEditingController(text: _maxSeats?.toString() ?? '');
-    final minPriceController = TextEditingController(text: _minPrice?.toString() ?? '');
-    final maxPriceController = TextEditingController(text: _maxPrice?.toString() ?? '');
+    final minSeatsController =
+    TextEditingController(text: _minSeats?.toString() ?? '');
+    final maxSeatsController =
+    TextEditingController(text: _maxSeats?.toString() ?? '');
+    final minPriceController =
+    TextEditingController(text: _minPrice?.toString() ?? '');
+    final maxPriceController =
+    TextEditingController(text: _maxPrice?.toString() ?? '');
     final cityController = TextEditingController(text: _filterCity ?? '');
-    final radiusController = TextEditingController(text: _filterRadius?.toString() ?? '');
+    final radiusController =
+    TextEditingController(text: _filterRadius?.toString() ?? '');
 
     List<String> tempFuelTypes = List.from(_filterFuelTypes);
     List<String> tempCarTypes = List.from(_filterCarTypes);
@@ -903,7 +934,8 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildSeatsFilterFields(TextEditingController minController, TextEditingController maxController) {
+  Widget _buildSeatsFilterFields(
+      TextEditingController minController, TextEditingController maxController) {
     return Column(
       children: [
         Row(
@@ -936,7 +968,8 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildFuelTypeFilterChips(List<String> tempFuelTypes, StateSetter setModalState) {
+  Widget _buildFuelTypeFilterChips(
+      List<String> tempFuelTypes, StateSetter setModalState) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -967,7 +1000,8 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildPriceFilterFields(TextEditingController minController, TextEditingController maxController) {
+  Widget _buildPriceFilterFields(
+      TextEditingController minController, TextEditingController maxController) {
     return Column(
       children: [
         Row(
@@ -979,8 +1013,7 @@ class _RentCarPageState extends State<RentCarPage> {
                   labelText: _minPriceLabel,
                   border: OutlineInputBorder(),
                 ),
-                keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
             ),
             const SizedBox(width: 16),
@@ -991,8 +1024,7 @@ class _RentCarPageState extends State<RentCarPage> {
                   labelText: _maxPriceLabel,
                   border: OutlineInputBorder(),
                 ),
-                keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
             ),
           ],
@@ -1002,7 +1034,8 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildCarTypeFilterChips(List<String> tempCarTypes, StateSetter setModalState) {
+  Widget _buildCarTypeFilterChips(
+      List<String> tempCarTypes, StateSetter setModalState) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1033,7 +1066,8 @@ class _RentCarPageState extends State<RentCarPage> {
     );
   }
 
-  Widget _buildLocationFilterFields(TextEditingController cityController, TextEditingController radiusController) {
+  Widget _buildLocationFilterFields(
+      TextEditingController cityController, TextEditingController radiusController) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1154,9 +1188,8 @@ class _RentCarPageState extends State<RentCarPage> {
       TextEditingController radiusController,
       ) async {
     setState(() {
-      _filterBrand = brandController.text.isEmpty
-          ? null
-          : brandController.text;
+      _filterBrand =
+      brandController.text.isEmpty ? null : brandController.text;
       _minSeats = minSeatsController.text.isEmpty
           ? null
           : int.tryParse(minSeatsController.text);
@@ -1171,9 +1204,7 @@ class _RentCarPageState extends State<RentCarPage> {
           ? null
           : double.tryParse(maxPriceController.text);
       _filterCarTypes = List.from(tempCarTypes);
-      _filterCity = cityController.text.isEmpty
-          ? null
-          : cityController.text;
+      _filterCity = cityController.text.isEmpty ? null : cityController.text;
       _filterRadius = radiusController.text.isEmpty
           ? null
           : double.tryParse(radiusController.text);

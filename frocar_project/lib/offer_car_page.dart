@@ -244,7 +244,7 @@ class _OfferCarPageState extends State<OfferCarPage> {
             ),
           ).then((result) {
             if (result == true) {
-              _loadUserListings();
+              _loadUserListings(); 
             }
           });
         },

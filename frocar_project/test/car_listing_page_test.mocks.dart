@@ -239,6 +239,15 @@ class MockApiService extends _i1.Mock implements _i4.ApiService {
           as _i6.Future<void>);
 
   @override
+  _i6.Future<void> deleteCarRental(int? rentalId) =>
+      (super.noSuchMethod(
+            Invocation.method(#deleteCarRental, [rentalId]),
+            returnValue: _i6.Future<void>.value(),
+            returnValueForMissingStub: _i6.Future<void>.value(),
+          )
+          as _i6.Future<void>);
+
+  @override
   _i6.Future<List<_i8.CarRental>> getUserCarRentals() =>
       (super.noSuchMethod(
             Invocation.method(#getUserCarRentals, []),
